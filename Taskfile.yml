@@ -1,0 +1,337 @@
+# https://taskfile.dev
+
+version: "3"
+
+tasks:
+  _deployAll:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - mkdir -p ./deployments
+      - forge script script/deploy.s.sol:Deploy -vv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+    generates:
+      - ./deployments/$CHAIN_ID
+
+  "devnet:deployAll":
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  "goerli:deployAll":
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  "mainnet:deployAll":
+    desc: "Deploys all the contracts using variables from the associated environment file for the network"
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _addInitiator:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/staking.s.sol:SteerStaking -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "addInitiator(address)" {{.NEW_INITIATOR}} {{.EXTRA_ARGS}}
+
+  "devnet:addInitiator":
+    cmds:
+      - task: _addInitiator
+        vars:
+          ENV_FILE: ".devnet.env"
+          NEW_INITIATOR: "{{.initiator}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _addAllocator:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/staking.s.sol:SteerStaking -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "addAllocator(address)" {{.NEW_ALLOCATOR}} {{.EXTRA_ARGS}}
+
+  "devnet:addAllocator":
+    cmds:
+      - task: _addAllocator
+        vars:
+          ENV_FILE: ".devnet.env"
+          NEW_ALLOCATOR: "{{.allocator}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _addReporter:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/quorum.s.sol:SteerOracleQuorumManager -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "addReporter(address)" {{.NEW_REPORTER}} {{.EXTRA_ARGS}}
+
+  "devnet:addReporter":
+    cmds:
+      - task: _addReporter
+        vars:
+          ENV_FILE: ".devnet.env"
+          NEW_REPORTER: "{{.reporter}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _getDepositData:
+    internal: true
+    cmds:
+      - cat ../services/devnet/consensus/validator_keys/deposit_data-*.json  | jq "{deposits:.}" > script/deposits.json
+
+  _setStakingAllowlistFlag:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/staking.s.sol:SteerStaking -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setStakingAllowlist(bool)" {{.IS_STAKING_ALLOWLIST}} {{.EXTRA_ARGS}}
+
+  "devnet:setStakingAllowlistFlag":
+    cmds:
+      - task: _setStakingAllowlistFlag
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
+
+  "goerli:setStakingAllowlistFlag":
+    cmds:
+      - task: _setStakingAllowlistFlag
+        vars:
+          ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
+
+  _initiateValidators:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - task: _getDepositData
+      - defer: rm -f script/deposits.json
+      - forge script script/staking.s.sol:SteerStaking -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "initiateValidators(uint8, uint8, uint256)" {{.STARTING_INDEX}} {{.NUM_VALIDATORS}} {{.OPERATOR_ID}} {{.EXTRA_ARGS}}
+
+  "devnet:initiateValidators":
+    cmds:
+      - task: _initiateValidators
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          STARTING_INDEX: "{{.start | default 0}}"
+          NUM_VALIDATORS: "{{.num | default 1}}"
+          OPERATOR_ID: "{{.operatorID | default 1}}"
+
+  _bootstrap:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - task: "devnet:deployAll"
+      - task: _getDepositData
+      - defer: rm -f script/deposits.json
+      - forge script script/pauser.s.sol:SteerPauser -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "addPauser(address)" $GUARDIAN_ADDRESS 'grant' {{.EXTRA_ARGS}}
+      - forge script script/staking.s.sol:SteerStaking -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "bootstrapValidators(uint8, uint8, uint256)" {{.STARTING_INDEX}} {{.NUM_VALIDATORS}} {{.OPERATOR_ID}}  {{.EXTRA_ARGS}}
+
+  "devnet:bootstrap":
+    cmds:
+      - task: _bootstrap
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          STARTING_INDEX: "{{.start | default 0}}"
+          NUM_VALIDATORS: "{{.num | default 1}}"
+          OPERATOR_ID: "{{.operatorID | default 1}}"
+
+  _setQuorumWindowBlocks:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/quorum.s.sol:SteerOracleQuorumManager -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setQuorumWindowBlocks(uint64)" {{.NUM_BLOCKS}} {{.EXTRA_ARGS}}
+
+  "devnet:setQuorumWindowBlocks":
+    cmds:
+      - task: _setQuorumWindowBlocks
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          NUM_BLOCKS: "{{.num | default 2400}}"
+
+  _unpauseAll:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/pauser.s.sol:SteerPauser -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "unpauseAll()" {{.EXTRA_ARGS}}
+
+  "devnet:unpauseAll":
+    cmds:
+      - task: _unpauseAll
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _setFinalizationBlockNumberDelta:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/oracle.s.sol:SteerOracle -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setFinalizationBlockNumberDelta(uint256)" {{.NUM_BLOCKS}} {{.EXTRA_ARGS}}
+
+  "devnet:setFinalizationBlockNumberDelta":
+    cmds:
+      - task: _setFinalizationBlockNumberDelta
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          NUM_BLOCKS: "{{.num | default 64}}"
+
+  _setMinReportSizeBlocks:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/oracle.s.sol:SteerOracle -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setMinReportSizeBlocks(uint16)" {{.NUM_BLOCKS}} {{.EXTRA_ARGS}}
+
+  "devnet:setMinReportSizeBlocks":
+    cmds:
+      - task: _setMinReportSizeBlocks
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          NUM_BLOCKS: "{{.num | default 100}}"
+
+  _setMaxConsensusLayerGainPerBlockPPT:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/oracle.s.sol:SteerOracle -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setMaxConsensusLayerGainPerBlockPPT(uint40)" {{.PPT}} {{.EXTRA_ARGS}}
+
+  "devnet:setMaxConsensusLayerGainPerBlockPPT":
+    cmds:
+      - task: _setMaxConsensusLayerGainPerBlockPPT
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          PPT: "{{.num | default 190250}}"
+
+  _setQuorumThresholds:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge script script/quorum.s.sol:SteerOracleQuorumManager -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "setQuorumThresholds(uint16, uint16)" {{.ABSOLUTE_THRESHOLD}} {{.RELATIVE_THRESHOLD_BASIS_POINTS}} {{.EXTRA_ARGS}}
+
+  "devnet:setQuorumThresholds":
+    cmds:
+      - task: _setQuorumThresholds
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          ABSOLUTE_THRESHOLD: "{{.abs | default 1}}"
+          RELATIVE_THRESHOLD_BASIS_POINTS: "{{.rel | default 0}}"
+
+  _depositBeacon:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - task: _getDepositData
+      - defer: rm -f script/deposits.json
+      - forge script script/deposit.s.sol:SteerDeposit -vvvv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deposit(uint8, uint8)" {{.STARTING_INDEX}} {{.NUM_VALIDATORS}} {{.EXTRA_ARGS}}
+
+  "devnet:depositBeacon":
+    cmds:
+      - task: _depositBeacon
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          STARTING_INDEX: "{{.start | default 0}}"
+          NUM_VALIDATORS: "{{.num | default 1}}"
+
+  _upgrade:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/upgrade.s.sol:Upgrade -v --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "upgrade(string memory, bool)" {{.CONTRACT_NAME}} {{.EXECUTE}}  {{.EXTRA_ARGS}}
+
+  "devnet:upgrade":
+    cmds:
+      - task: _upgrade
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          CONTRACT_NAME: "{{.name}}"
+          EXECUTE: "{{.execute | default false}}"
+
+  "goerli:upgrade":
+    cmds:
+      - task: _upgrade
+        vars:
+          ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          CONTRACT_NAME: "{{.name}}"
+          EXECUTE: "{{.execute | default false}}"
+
+  "mainnet:upgrade":
+    desc: "Upgrades a given contract and (optionally) executes the upgrade onchain or logs out the upgrade bytecode"
+    cmds:
+      - task: _upgrade
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          CONTRACT_NAME: "{{.name}}"
+          EXECUTE: "{{.execute | default false}}"
+
+  _transferAllRoles:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/deploy.s.sol:Deploy -v --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "transferAllRoles()" {{.EXTRA_ARGS}}
+
+  "goerli:transferAllRoles":
+    cmds:
+      - task: _transferAllRoles
+        vars:
+          ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  "mainnet:transferAllRoles":
+    desc: "Expects the msg.sender to be the current admin. Transfers all roles to the addresses expressed in the env file."
+    cmds:
+      - task: _transferAllRoles
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _modifyExistingRecords:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/oracle.s.sol:SteerOracle -v --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s 'modifyOracleRecords(string calldata)' {{.FILE}} {{.EXTRA_ARGS}}
+
+  "devnet:modifyExistingRecords":
+    cmds:
+      - task: _modifyExistingRecords
+        vars:
+          ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          FILE: "{{.file}}"
+
+  "goerli:modifyExistingRecords":
+    cmds:
+      - task: _modifyExistingRecords
+        vars:
+          ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          FILE: "{{.file}}"
+
+  "mainnet:modifyExistingRecords":
+    desc: "Passing in a records json file, modifies the number (numRecords) of oracle records beginning at the startIndex"
+    cmds:
+      - task: _modifyExistingRecords
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          FILE: "{{.file}}"
+
+  pushSelectors:
+    cmds:
+      - forge build
+      - forge upload-selectors --all
