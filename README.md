@@ -1,15 +1,57 @@
-# mETH
+# Mantle LSP
 
-mETH Liquid Staking Contracts
+Mantle Liquid Staking Platform Contracts.
 
-## Debugging
+Mantle LSP is a permissionless ETH liquid staking protocol deployed on Ethereum L1 and is governed by [Mantle Governance](https://docs.mantle.xyz/governance). It is the second core product of [Mantle Ecosystem](https://www.mantle.xyz/) after [Mantle Network L2](https://docs.mantle.xyz/network/introduction/overview).
 
-To allow `cast 4byte` to correctly decode our function/event/error selectors, we need to push them to the signature database.
-To trigger this run
+mETH is the receipt token of Mantle LSP. It is a reward accumulating and permissionless ERC-20 token that can be used by various application such as: DeFi applications on Ethereum L1, Mantle Network L2, and any other chains; and centralized applications such as exchanges.
 
-```bash
-task pushSelectors
-```
+### Contract addresses
+
+| Contract                      | Address |
+| ----------------------------- | ------- |
+| Staking                       | TBD     |
+| METH                          | TBD     |
+| Oracle                        | TBD     |
+| OracleQuorumManager           | TBD     |
+| Pauser                        | TBD     |
+| ReturnsAggregator             | TBD     |
+| ConsensusLayerReturnsReceiver | TBD     |
+| ExecutionLayerReturnsReceiver | TBD     |
+
+### Contract overviews
+
+#### Staking
+
+The Staking contract is considered the public interface for the project, and is the only contract that users should ever need to interact with. It handles staking/unstaking operations, as well as the accounting for the project (i.e. how much ETH is controlled by the protocol).
+
+#### UnstakeRequestsManager
+
+The UnstakeRequestsManager contract is responsible for tracking unstake requests. It places each request into a first-in-first-out queue, and determines when requests are eligible for claiming. This is considered an 'internal' contract, and users must transact with the Staking contract to unstake.
+
+#### Oracle
+
+The Oracle contract receives and validates oracle "records" which are reported by the off-chain oracle systems. It is responsible for ensuring that oracle records are valid and complete, and has extensive "sanity checks" to confirm that the provided data is within realistic expected bounds.
+
+#### OracleQuorumManager
+
+The OracleQuorumManager is the interface for off-chain oracles to send oracle records to the system. The contract has configurable properties which can be used to ensure that multiple, independent off-chain oracles agree on the data within a record before it is considered to be eligible to be written to the Oracle contract for verifcation and storage.
+
+#### Returns Aggregator
+
+The ReturnsAggregator is responsible for processing all incoming "returns" (rewards and principals) from the protocol. It uses validated Oracle records to understand the source of the money which has been received, takes protocol fees where appropriate, and sends the remaining amount to the Staking contract to be compounded or to fill unstake requests.
+
+#### ConsensusLayerReceiver
+
+This receiver is a simple contract which all consensus layer withdrawals arrive at. Money can be pulled from here into the protocol by the ReturnsAggregator.
+
+#### ExecutionLayerReceiver
+
+This receiver is a simple contract which all execution layer rewards arrive at. These are gas tips from execution and MEV rewards. Money can be pulled from here into the protocol by the ReturnsAggregator.
+
+#### Pauser
+
+The Pauser contract is a centralized pausing system which other contracts call to ensure that operations within the protocol are currently active and allowed. The Pauser may be invoked by other contract (e.g. the Oracle may pause the protocol if an unexpected report is detected), or by off-chain guardians.
 
 ### Devnet Operations
 
@@ -174,4 +216,13 @@ Update the maximum gain per block in consensus layer rewards. This is used to ci
 
 ```bash
 task devnet:setMaxConsensusLayerGainPerBlockPPT num=190250000 -- --broadcast
+```
+
+### Debugging
+
+To allow `cast 4byte` to correctly decode our function/event/error selectors, we need to push them to the signature database.
+To trigger this run
+
+```bash
+task pushSelectors
 ```
