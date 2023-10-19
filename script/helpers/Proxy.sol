@@ -356,6 +356,14 @@ function grantAndRenounce(AccessControl controllable, bytes32 role, address send
     }
 }
 
+function grantRole(AccessControlUpgradeable controllable, bytes32 role, address newAccount) {
+    grantRole(AccessControl(address(controllable)), role, newAccount);
+}
+
+function grantRole(AccessControl controllable, bytes32 role, address newAccount) {
+    controllable.grantRole(role, newAccount);
+}
+
 /// @notice Grants roles to addresses as specified in `params` and renounces the roles from `sender`.
 /// @dev Assumes that all contracts were deployed using `sender` as admin/manager/etc.
 function grantAndRenounceAllRoles(DeploymentParams memory params, Deployments memory ds, address sender) {
@@ -400,4 +408,17 @@ function grantAndRenounceAllRoles(DeploymentParams memory params, Deployments me
     grantAndRenounce(ds.proxyAdmin, ds.proxyAdmin.EXECUTOR_ROLE(), sender, params.upgrader);
     grantAndRenounce(ds.proxyAdmin, ds.proxyAdmin.CANCELLER_ROLE(), sender, params.upgrader);
     grantAndRenounce(ds.proxyAdmin, ds.proxyAdmin.TIMELOCK_ADMIN_ROLE(), sender, params.admin);
+}
+
+function grantAllAdminRoles(Deployments memory ds, address newAdmin) {
+    grantRole(ds.staking, ds.staking.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.mETH, ds.mETH.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.oracle, ds.oracle.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.quorumManager, ds.quorumManager.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.unstakeRequestsManager, ds.unstakeRequestsManager.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.aggregator, ds.aggregator.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.pauser, ds.pauser.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.consensusLayerReceiver, ds.consensusLayerReceiver.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.executionLayerReceiver, ds.executionLayerReceiver.DEFAULT_ADMIN_ROLE(), newAdmin);
+    grantRole(ds.proxyAdmin, ds.proxyAdmin.TIMELOCK_ADMIN_ROLE(), newAdmin);
 }
