@@ -5,7 +5,9 @@ pragma solidity ^0.8.20;
 import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
 
-import {deployAll, grantAndRenounceAllRoles, Deployments, DeploymentParams} from "./helpers/Proxy.sol";
+import {
+    deployAll, grantAndRenounceAllRoles, grantAllAdminRoles, Deployments, DeploymentParams
+} from "./helpers/Proxy.sol";
 
 contract Deploy is Base {
     function _readDeploymentParamsFromEnv() internal view returns (DeploymentParams memory) {
@@ -58,6 +60,13 @@ contract Deploy is Base {
 
         vm.startBroadcast();
         grantAndRenounceAllRoles(params, ds, msg.sender);
+        vm.stopBroadcast();
+    }
+
+    function addNewAdminToAllContracts(address newAdmin) public {
+        Deployments memory ds = readDeployments();
+        vm.startBroadcast();
+        grantAllAdminRoles(ds, newAdmin);
         vm.stopBroadcast();
     }
 }
