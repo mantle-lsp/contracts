@@ -239,6 +239,7 @@ contract UnstakeRequestsManager is
 
         // Find the number of requests that have not been finalized.
         uint256 numCancelled = 0;
+        uint128 amountETHCancelled = 0;
         while (numCancelled < maxCancel) {
             UnstakeRequest memory request = _unstakeRequests[_unstakeRequests.length - 1];
 
@@ -249,6 +250,7 @@ contract UnstakeRequestsManager is
             _unstakeRequests.pop();
             requests[numCancelled] = request;
             ++numCancelled;
+            amountETHCancelled += request.ethRequested;
 
             emit UnstakeRequestCancelled(
                 request.id,
@@ -260,15 +262,18 @@ contract UnstakeRequestsManager is
             );
         }
 
-        // Reset the latest cumulative ETH state and check whether there are more unfinalized requests to cancel.
+        // Reset the latest cumulative ETH state
+        if (amountETHCancelled > 0) {
+            latestCumulativeETHRequested -= amountETHCancelled;
+        }
+
+        // check whether there are more unfinalized requests to cancel.
         bool hasMore;
         uint256 remainingRequestsLength = _unstakeRequests.length;
         if (remainingRequestsLength == 0) {
-            latestCumulativeETHRequested = 0;
             hasMore = false;
         } else {
             UnstakeRequest memory latestRemainingRequest = _unstakeRequests[remainingRequestsLength - 1];
-            latestCumulativeETHRequested = latestRemainingRequest.cumulativeETHRequested;
             hasMore = !_isFinalized(latestRemainingRequest);
         }
 

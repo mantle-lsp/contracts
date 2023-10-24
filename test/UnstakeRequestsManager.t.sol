@@ -782,4 +782,55 @@ contract UnstakeRequestsEmergencyCancelUnfinalizedTest is UnstakeRequestsManager
         hasMore = unstakeRequestsManager.cancelUnfinalizedRequests(5);
         assertFalse(hasMore);
     }
+
+    function testCancelRequestsWithClaimed() public {
+        uint256 totalMETHLocked = 0;
+        uint256 startingBlockNumber = block.number;
+        UnstakeRequest[] memory unstakeRequestsToCancel = new UnstakeRequest[](
+            5
+        );
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 id = createRequest(generalTest);
+            UnstakeRequest memory request = unstakeRequestsManager.requestByID(id);
+            unstakeRequestsToCancel[i] = request;
+            totalMETHLocked += request.mETHLocked;
+
+            vm.roll(block.number + 1);
+        }
+
+        // Allocate enough for all requesters.
+        uint256 allocatedETHDeficit = unstakeRequestsManager.allocatedETHDeficit();
+        vm.deal(address(staking), allocatedETHDeficit);
+        vm.prank(address(staking));
+        unstakeRequestsManager.allocateETH{value: allocatedETHDeficit}();
+        _mintMETH(address(unstakeRequestsManager), totalMETHLocked);
+
+        // Only allow the first user to claim.
+        OracleRecord memory record;
+        record.updateEndBlock = uint64(startingBlockNumber + unstakeRequestsManager.numberOfBlocksToFinalize());
+        oracle.pushRecord(record);
+
+        vm.prank(address(staking));
+        unstakeRequestsManager.claim(0, requester);
+
+        // Should only cancel the four events to the last one
+        for (uint256 i = unstakeRequestsToCancel.length - 1; i >= 1; --i) {
+            vm.expectEmit(address(unstakeRequestsManager));
+            emit UnstakeRequestCancelled(
+                unstakeRequestsToCancel[i].id,
+                unstakeRequestsToCancel[i].requester,
+                unstakeRequestsToCancel[i].mETHLocked,
+                unstakeRequestsToCancel[i].ethRequested,
+                unstakeRequestsToCancel[i].cumulativeETHRequested,
+                unstakeRequestsToCancel[i].blockNumber
+            );
+        }
+
+        // Cancel all unfinalized requests and check if calculations are correct.
+        vm.prank(requestCanceller);
+        bool hasMore = unstakeRequestsManager.cancelUnfinalizedRequests(5);
+        assertFalse(hasMore);
+
+        assertEq(unstakeRequestsManager.latestCumulativeETHRequested(), 1 * generalTest.ethRequested);
+    }
 }
