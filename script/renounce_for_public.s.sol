@@ -52,7 +52,7 @@ contract Deploy is Base {
         // after adjust check
         require(
             depls.oracle.getRoleMemberCount(depls.oracle.ORACLE_MANAGER_ROLE()) == 1,
-            "Oracle.DEFAULT_ADMIN_ROLE expect 1 member"
+            "Oracle.ORACLE_MANAGER_ROLE expect 1 member"
         );
 
         console2.log("====================");
@@ -656,19 +656,55 @@ contract Deploy is Base {
 
     function checkRoleStatus(Deployments memory depls) public view {
         // check oracle
+        require(
+            depls.mETH.getRoleMemberCount(depls.mETH.DEFAULT_ADMIN_ROLE()) == 1,
+            "mETH.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("METH", depls.mETH.DEFAULT_ADMIN_ROLE(), securityCouncil);
 
         // check Oracle
+        require(
+            depls.oracle.getRoleMemberCount(depls.oracle.DEFAULT_ADMIN_ROLE()) == 1,
+            "oracle.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("Oracle", depls.oracle.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.oracle.getRoleMemberCount(depls.oracle.ORACLE_MANAGER_ROLE()) == 1,
+            "oracle.ORACLE_MANAGER_ROLE() expect 1 role member"
+        );
         check("Oracle", depls.oracle.ORACLE_MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.oracle.getRoleMemberCount(depls.oracle.ORACLE_MODIFIER_ROLE()) == 1,
+            "oracle.ORACLE_MODIFIER_ROLE() expect 1 role member"
+        );
         check("Oracle", depls.oracle.ORACLE_MODIFIER_ROLE(), securityCouncil);
+        require(
+            depls.oracle.getRoleMemberCount(depls.oracle.ORACLE_PENDING_UPDATE_RESOLVER_ROLE()) == 2,
+            "oracle.ORACLE_PENDING_UPDATE_RESOLVER_ROLE() expect 2 role member"
+        );
         check("Oracle", depls.oracle.ORACLE_PENDING_UPDATE_RESOLVER_ROLE(), securityCouncil);
         check("Oracle", depls.oracle.ORACLE_PENDING_UPDATE_RESOLVER_ROLE(), lspMultiSig);
 
         // check OracleQuorumManager
+        require(
+            depls.quorumManager.getRoleMemberCount(depls.quorumManager.DEFAULT_ADMIN_ROLE()) == 1,
+            "quorumManager.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("OracleQuorumManager", depls.quorumManager.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.quorumManager.getRoleMemberCount(depls.quorumManager.QUORUM_MANAGER_ROLE()) == 1,
+            "quorumManager.QUORUM_MANAGER_ROLE() expect 1 role member"
+        );
         check("OracleQuorumManager", depls.quorumManager.QUORUM_MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.quorumManager.getRoleMemberCount(depls.quorumManager.REPORTER_MODIFIER_ROLE()) == 1,
+            "quorumManager.REPORTER_MODIFIER_ROLE() expect 1 role member"
+        );
         check("OracleQuorumManager", depls.quorumManager.REPORTER_MODIFIER_ROLE(), securityCouncil);
+        require(
+            depls.quorumManager.getRoleMemberCount(depls.quorumManager.SERVICE_ORACLE_REPORTER()) == 4,
+            "quorumManager.DEFAULT_ADMIN_ROLE() expect 4 role member"
+        );
         check(
             "OracleQuorumManager",
             depls.quorumManager.SERVICE_ORACLE_REPORTER(),
@@ -691,19 +727,51 @@ contract Deploy is Base {
         );
 
         // check Pauser
+        require(
+            depls.pauser.getRoleMemberCount(depls.pauser.DEFAULT_ADMIN_ROLE()) == 1,
+            "quorumManager.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("Pauser", depls.pauser.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.pauser.getRoleMemberCount(depls.pauser.PAUSER_ROLE()) == 2,
+            "quorumManager.PAUSER_ROLE() expect 2 role member"
+        );
         check("Pauser", depls.pauser.PAUSER_ROLE(), lspMultiSig);
         check("Pauser", depls.pauser.PAUSER_ROLE(), guardianSigner);
+        require(
+            depls.pauser.getRoleMemberCount(depls.pauser.UNPAUSER_ROLE()) == 2,
+            "quorumManager.UNPAUSER_ROLE() expect 2 role member"
+        );
         check("Pauser", depls.pauser.UNPAUSER_ROLE(), securityCouncil);
         check("Pauser", depls.pauser.UNPAUSER_ROLE(), adminEOA);
 
         // check ReturnsAggregator
+        require(
+            depls.aggregator.getRoleMemberCount(depls.aggregator.DEFAULT_ADMIN_ROLE()) == 1,
+            "aggregator.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("ReturnsAggregator", depls.aggregator.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.aggregator.getRoleMemberCount(depls.aggregator.DEFAULT_ADMIN_ROLE()) == 1,
+            "aggregator.AGGREGATOR_MANAGER_ROLE() expect 1 role member"
+        );
         check("ReturnsAggregator", depls.aggregator.AGGREGATOR_MANAGER_ROLE(), securityCouncil);
 
         // check ConsensusLayerReceiver
+        require(
+            depls.consensusLayerReceiver.getRoleMemberCount(depls.consensusLayerReceiver.DEFAULT_ADMIN_ROLE()) == 1,
+            "consensusLayerReceiver.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("ConsensusLayerReceiver", depls.consensusLayerReceiver.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.consensusLayerReceiver.getRoleMemberCount(depls.consensusLayerReceiver.RECEIVER_MANAGER_ROLE()) == 1,
+            "consensusLayerReceiver.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("ConsensusLayerReceiver", depls.consensusLayerReceiver.RECEIVER_MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.consensusLayerReceiver.getRoleMemberCount(depls.consensusLayerReceiver.WITHDRAWER_ROLE()) == 1,
+            "consensusLayerReceiver.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check(
             "ConsensusLayerReceiver",
             depls.consensusLayerReceiver.WITHDRAWER_ROLE(),
@@ -711,8 +779,20 @@ contract Deploy is Base {
         );
 
         // check ExecutionLayerReceiver
+        require(
+            depls.executionLayerReceiver.getRoleMemberCount(depls.executionLayerReceiver.DEFAULT_ADMIN_ROLE()) == 1,
+            "executionLayerReceiver.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("ExecutionLayerReceiver", depls.executionLayerReceiver.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.executionLayerReceiver.getRoleMemberCount(depls.executionLayerReceiver.RECEIVER_MANAGER_ROLE()) == 1,
+            "executionLayerReceiver.RECEIVER_MANAGER_ROLE() expect 1 role member"
+        );
         check("ExecutionLayerReceiver", depls.executionLayerReceiver.RECEIVER_MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.executionLayerReceiver.getRoleMemberCount(depls.executionLayerReceiver.WITHDRAWER_ROLE()) == 1,
+            "executionLayerReceiver.WITHDRAWER_ROLE() expect 1 role member"
+        );
         check(
             "ExecutionLayerReceiver",
             depls.executionLayerReceiver.WITHDRAWER_ROLE(),
@@ -720,20 +800,61 @@ contract Deploy is Base {
         );
 
         // check Staking
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.DEFAULT_ADMIN_ROLE()) == 1,
+            "staking.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("Staking", depls.staking.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.STAKING_MANAGER_ROLE()) == 1,
+            "staking.STAKING_MANAGER_ROLE() expect 1 role member"
+        );
         check("Staking", depls.staking.STAKING_MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.ALLOCATOR_SERVICE_ROLE()) == 1,
+            "staking.ALLOCATOR_SERVICE_ROLE() expect 1 role member"
+        );
         check("Staking", depls.staking.ALLOCATOR_SERVICE_ROLE(), 0xC62cE6fDff7B1374971A5F6f04f4aabc464e1447);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.INITIATOR_SERVICE_ROLE()) == 1,
+            "staking.INITIATOR_SERVICE_ROLE() expect 1 role member"
+        );
         check("Staking", depls.staking.INITIATOR_SERVICE_ROLE(), 0x0eC6a4ed8bEa13f939A9cB7BbE1871cEe2b12046);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.STAKING_ALLOWLIST_MANAGER_ROLE()) == 2,
+            "staking.STAKING_ALLOWLIST_MANAGER_ROLE() expect 2 role member"
+        );
         check("Staking", depls.staking.STAKING_ALLOWLIST_MANAGER_ROLE(), lspMultiSig);
+        check("Staking", depls.staking.STAKING_ALLOWLIST_MANAGER_ROLE(), adminEOA);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.STAKING_ALLOWLIST_ROLE()) == 3,
+            "staking.STAKING_ALLOWLIST_ROLE() expect 3 role member"
+        );
         check("Staking", depls.staking.STAKING_ALLOWLIST_ROLE(), 0x432ABcCb04DdD86Db9aA91FA3E03Fb566270c9ff);
         check("Staking", depls.staking.STAKING_ALLOWLIST_ROLE(), 0xcC401649651A98AD9aede0146b89fA567c98bBb3);
         check("Staking", depls.staking.STAKING_ALLOWLIST_ROLE(), 0x3Dc5FcB0Ad5835C6059112e51A75b57DBA668eB8);
+        require(
+            depls.staking.getRoleMemberCount(depls.staking.TOP_UP_ROLE()) == 2,
+            "staking.TOP_UP_ROLE() expect 2 role member"
+        );
         check("Staking", depls.staking.TOP_UP_ROLE(), adminEOA);
         check("Staking", depls.staking.TOP_UP_ROLE(), lspMultiSig);
 
         // check UnstakeRequestsManager
+        require(
+            depls.unstakeRequestsManager.getRoleMemberCount(depls.unstakeRequestsManager.DEFAULT_ADMIN_ROLE()) == 1,
+            "unstakeRequestsManager.DEFAULT_ADMIN_ROLE() expect 1 role member"
+        );
         check("UnstakeRequestsManager", depls.unstakeRequestsManager.DEFAULT_ADMIN_ROLE(), securityCouncil);
+        require(
+            depls.unstakeRequestsManager.getRoleMemberCount(depls.unstakeRequestsManager.MANAGER_ROLE()) == 1,
+            "unstakeRequestsManager.MANAGER_ROLE() expect 1 role member"
+        );
         check("UnstakeRequestsManager", depls.unstakeRequestsManager.MANAGER_ROLE(), securityCouncil);
+        require(
+            depls.unstakeRequestsManager.getRoleMemberCount(depls.unstakeRequestsManager.REQUEST_CANCELLER_ROLE()) == 1,
+            "unstakeRequestsManager.REQUEST_CANCELLER_ROLE() expect 1 role member"
+        );
         check("UnstakeRequestsManager", depls.unstakeRequestsManager.REQUEST_CANCELLER_ROLE(), securityCouncil);
 
         // check UnstakeRequestsManager
