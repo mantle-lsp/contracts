@@ -8,16 +8,26 @@ mETH is the receipt token of Mantle LSP. It is a reward accumulating and permiss
 
 ### Contract addresses
 
-| Contract                      | Address |
-| ----------------------------- | ------- |
-| Staking                       | TBD     |
-| METH                          | TBD     |
-| Oracle                        | TBD     |
-| OracleQuorumManager           | TBD     |
-| Pauser                        | TBD     |
-| ReturnsAggregator             | TBD     |
-| ConsensusLayerReturnsReceiver | TBD     |
-| ExecutionLayerReturnsReceiver | TBD     |
+__L1__
+
+| Contract                      | Address                                      |
+|-------------------------------|----------------------------------------------|
+| Staking                       | 0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f   |
+| METH                          | 0xd5F7838F5C461fefF7FE49ea5ebaF7728bB0ADfa   |
+| Oracle                        | 0x8735049F496727f824Cc0f2B174d826f5c408192   |
+| OracleQuorumManager           | 0x92e56d2146D54d5AEcB25CA36c89D027a6ea0D90   |
+| UnstakeRequestsManager        | 0x38fDF7b489316e03eD8754ad339cb5c4483FDcf9   |
+| Pauser                        | 0x29Ab878aEd032e2e2c86FF4A9a9B05e3276cf1f8   |
+| ReturnsAggregator             | 0x1766be66fBb0a1883d41B4cfB0a533c5249D3b82   |
+| ConsensusLayerReturnsReceiver | 0xD4e11C28E04c0c2bf370b7a9989498B7eA02493f   |
+| ExecutionLayerReturnsReceiver | 0xD6E4aA932147A3FE5311dA1b67D9e73da06F9cEf   |
+
+__L2__
+
+| Contract                      | Address                                      |
+|-------------------------------|----------------------------------------------|
+| METHL2                        | 0xcDA86A272531e8640cD7F1a92c01839911B90bb0   |
+
 
 ### Contract overviews
 
