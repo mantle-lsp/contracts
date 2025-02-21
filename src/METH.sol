@@ -13,6 +13,7 @@ import {
 import {IMETH} from "./interfaces/IMETH.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
 import {IUnstakeRequestsManager} from "./interfaces/IUnstakeRequestsManager.sol";
+import {IBlockList} from "./interfaces/IBlockList.sol";
 
 /// @title METH
 /// @notice METH is the ERC20 LSD token for the protocol.
@@ -26,6 +27,8 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
 
     /// @notice The unstake requests manager contract which has permissions to burn tokens.
     IUnstakeRequestsManager public unstakeRequestsManagerContract;
+
+    IBlockList public blockListContract;
 
     /// @notice Configuration for contract initialization.
     struct Init {
@@ -79,5 +82,26 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         returns (uint256)
     {
         return ERC20PermitUpgradeable.nonces(owner);
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal override {
+        if (address(blockListContract) != address(0)) {
+            if (from != msg.sender && to != msg.sender) {
+                require(!blockListContract.isBlocked(msg.sender), "mETH: 'sender' address blocked");
+            }
+
+            if (from != address(0)) {
+                require(!blockListContract.isBlocked(from), "mETH: 'from' address blocked");
+            }
+
+            if (to != address(0)) {
+                require(!blockListContract.isBlocked(to), "mETH: 'to' address blocked");
+            }
+        }
+        return super._transfer(from, to, amount);
+    }
+
+    function setBlocklist(address _blocklist) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        blockListContract = IBlockList(_blocklist);
     }
 }
