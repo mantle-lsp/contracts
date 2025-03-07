@@ -84,20 +84,18 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         return ERC20PermitUpgradeable.nonces(owner);
     }
 
-    function _transfer(address from, address to, uint256 amount) internal override {
-        if (address(blockListContract) != address(0)) {
-            if (from != msg.sender && to != msg.sender) {
-                require(!blockListContract.isBlocked(msg.sender), "mETH: 'sender' address blocked");
-            }
-
-            if (from != address(0)) {
-                require(!blockListContract.isBlocked(from), "mETH: 'from' address blocked");
-            }
-
-            if (to != address(0)) {
-                require(!blockListContract.isBlocked(to), "mETH: 'to' address blocked");
-            }
+    modifier notBlocked(address from, address to) {
+        if (address(blockListContract) == address(0)){
+            _;
+            return;
         }
+        require(!blockListContract.isBlocked(msg.sender), "mETH: 'sender' address blocked");
+        require(!blockListContract.isBlocked(from), "mETH: 'from' address blocked");
+        require(!blockListContract.isBlocked(to), "mETH: 'to' address blocked");
+        _;
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal override notBlocked(from, to) {
         return super._transfer(from, to, amount);
     }
 
