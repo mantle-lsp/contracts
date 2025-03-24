@@ -11,6 +11,7 @@ import {AccessControlUpgradeable} from "openzeppelin-upgradeable/access/AccessCo
 import {AccessControl} from "openzeppelin/access/AccessControl.sol";
 
 import {IDepositContract} from "../../src/interfaces/IDepositContract.sol";
+import {IBlockList} from "../../src/interfaces/IBlockList.sol";
 import {Pauser} from "../../src/Pauser.sol";
 import {Oracle} from "../../src/Oracle.sol";
 import {OracleQuorumManager} from "../../src/OracleQuorumManager.sol";
@@ -68,6 +69,7 @@ struct DeploymentParams {
     address reporterModifier;
     address[] reporters;
     address payable feesReceiver;
+    IBlockList blockList;
 }
 
 function deployAll(DeploymentParams memory params) returns (Deployments memory) {
@@ -131,7 +133,7 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
     ds.mETH = initMETH(
         proxyAdmin,
         ITransparentUpgradeableProxy(address(ds.mETH)),
-        METH.Init({admin: params.admin, staking: ds.staking, unstakeRequestsManager: ds.unstakeRequestsManager})
+        METH.Init({admin: params.admin, staking: ds.staking, unstakeRequestsManager: ds.unstakeRequestsManager, blockList: params.blockList})
     );
 
     // Oracle relies on staking and aggregator to process oracle records, so we need to deploy those first.

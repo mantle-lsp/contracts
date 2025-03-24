@@ -8,7 +8,7 @@ import {
     TransparentUpgradeableProxy
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "openzeppelin/proxy/transparent/ProxyAdmin.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {METH, IMETH} from "../src/METH.sol";
 import {UnstakeRequestsManager, UnstakeRequestsManagerEvents, UnstakeRequest} from "../src/UnstakeRequestsManager.sol";
 import {Staking} from "../src/Staking.sol";
@@ -81,7 +81,8 @@ contract UnstakeRequestsManagerTest is BaseTest, UnstakeRequestsManagerEvents {
             METH.Init({
                 admin: admin,
                 staking: staking,
-                unstakeRequestsManager: UnstakeRequestsManager(payable(address(proxy)))
+                unstakeRequestsManager: UnstakeRequestsManager(payable(address(proxy))),
+                blockList: IBlockList(address(0))
             })
         );
 

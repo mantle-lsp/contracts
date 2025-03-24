@@ -21,7 +21,8 @@ contract METHTest is BaseTest {
             METH.Init({
                 admin: admin,
                 staking: Staking(payable(stakingContract)),
-                unstakeRequestsManager: UnstakeRequestsManager(payable(unstakeRequestsManagerContract))
+                unstakeRequestsManager: UnstakeRequestsManager(payable(unstakeRequestsManagerContract)),
+                blockList: IBlockList(address(0))
             })
         );
     }

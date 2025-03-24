@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 
 import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {
     deployAll, grantAndRenounceAllRoles, grantAllAdminRoles, Deployments, DeploymentParams
 } from "./helpers/Proxy.sol";
@@ -25,7 +25,8 @@ contract Deploy is Base {
             reporterModifier: vm.envAddress("REPORTER_MODIFIER_ADDRESS"),
             reporters: reporters,
             feesReceiver: payable(vm.envAddress("FEES_RECEIVER_ADDRESS")),
-            depositContract: address(depositContract)
+            depositContract: address(depositContract),
+            blockList: IBlockList(address(0))
         });
     }
 

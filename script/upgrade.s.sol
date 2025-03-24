@@ -81,7 +81,7 @@ contract Upgrade is Base {
             UnstakeRequestsManager impl = new UnstakeRequestsManager();
             return (address(depls.unstakeRequestsManager), address(impl));
         }
-        revert("Uknown contract");
+        revert("Unknown contract");
     }
 
     function upgrade(string memory contractName, bool shouldExecute) public {

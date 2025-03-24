@@ -10,7 +10,7 @@ import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IUnstakeRequestsManager, UnstakeRequest} from "../src/interfaces/IUnstakeRequestsManager.sol";
 import {IOracleRead} from "../src/interfaces/IOracle.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {METH} from "../src/METH.sol";
 import {Staking, StakingEvents} from "../src/Staking.sol";
 import {UnstakeRequestsManager} from "../src/UnstakeRequestsManager.sol";
@@ -73,7 +73,8 @@ contract StakingTest is BaseTest, StakingEvents {
             METH.Init({
                 admin: admin,
                 staking: Staking(payable(address(stakingProxy))),
-                unstakeRequestsManager: UnstakeRequestsManager(payable(address(0)))
+                unstakeRequestsManager: UnstakeRequestsManager(payable(address(0))),
+                blockList: IBlockList(address(0))
             })
         );
 
