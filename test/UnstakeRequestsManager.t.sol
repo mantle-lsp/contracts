@@ -149,6 +149,16 @@ contract UnstakeRequestsSettersTest is UnstakeRequestsManagerTest {
         unstakeRequestsManager.setNumberOfBlocksToFinalize(numOfBlocks);
         assertEq(unstakeRequestsManager.numberOfBlocksToFinalize(), numOfBlocks);
     }
+
+    function testSetWithdrawDelayBlocks(uint64 numOfBlocks) public {
+        expectProtocolConfigEvent(
+            address(unstakeRequestsManager), "setWithdrawDelayBlocks(uint64)", abi.encode(numOfBlocks)
+        );
+
+        vm.prank(manager);
+        unstakeRequestsManager.setWithdrawDelayBlocks(numOfBlocks);
+        assertEq(unstakeRequestsManager.withdrawDelayBlocks(), numOfBlocks);
+    }
 }
 
 contract UnstakeRequestsVandalTest is UnstakeRequestsManagerTest {
@@ -157,6 +167,13 @@ contract UnstakeRequestsVandalTest is UnstakeRequestsManagerTest {
             vandal, address(unstakeRequestsManager), unstakeRequestsManager.MANAGER_ROLE()
         );
         unstakeRequestsManager.setNumberOfBlocksToFinalize(numberOfBlocks);
+    }
+
+    function testSetWithdrawDelayBlocksUnauthorized(uint64 numberOfBlocks) public {
+        assumeMissingRolePrankAndExpectRevert(
+            vandal, address(unstakeRequestsManager), unstakeRequestsManager.MANAGER_ROLE()
+        );
+        unstakeRequestsManager.setWithdrawDelayBlocks(numberOfBlocks);
     }
 
     function testCreateUnauthorized(address requester_, uint128 mETHLocked, uint128 ethRequested) public {
@@ -460,7 +477,7 @@ contract UnstakeRequestsClaimTest is UnstakeRequestsManagerTest {
     function _testClaim(uint256 requestID, address requester) internal {
         UnstakeRequest memory request = unstakeRequestsManager.requestByID(requestID);
         uint256 prevRequesterBalance = requester.balance;
-        uint256 prevMntTotalSupply = mETH.totalSupply();
+        uint256 prevMETHTotalSupply = mETH.totalSupply();
         uint256 prevMETHBalance = mETH.balanceOf(address(unstakeRequestsManager));
         uint256 prevTotalClaimed = unstakeRequestsManager.totalClaimed();
 
@@ -480,7 +497,7 @@ contract UnstakeRequestsClaimTest is UnstakeRequestsManagerTest {
         assertEq(emptiedRequest, emptyRequest);
         assertEq(unstakeRequestsManager.totalClaimed(), prevTotalClaimed + request.ethRequested);
         assertEq(requester.balance, prevRequesterBalance + request.ethRequested);
-        assertEq(mETH.totalSupply(), prevMntTotalSupply - request.mETHLocked);
+        assertEq(mETH.totalSupply(), prevMETHTotalSupply - request.mETHLocked);
         assertEq(mETH.balanceOf(address(unstakeRequestsManager)), prevMETHBalance - request.mETHLocked);
     }
 
@@ -496,6 +513,33 @@ contract UnstakeRequestsClaimTest is UnstakeRequestsManagerTest {
         unstakeRequestsManager.allocateETH{value: request.ethRequested}();
         _mintMETH(address(unstakeRequestsManager), request.mETHLocked);
 
+        _testClaim(requestID, request.requester);
+    }
+
+    function testNotReady() public {
+        uint256 requestID = createRequest();
+        UnstakeRequest memory request = unstakeRequestsManager.requestByID(requestID);
+        OracleRecord memory record;
+        record.updateEndBlock = uint64(block.number + unstakeRequestsManager.numberOfBlocksToFinalize());
+        oracle.pushRecord(record);
+
+        vm.deal(address(staking), request.ethRequested);
+        vm.prank(address(staking));
+        unstakeRequestsManager.allocateETH{value: request.ethRequested}();
+        _mintMETH(address(unstakeRequestsManager), request.mETHLocked);
+
+        vm.prank(manager);
+        unstakeRequestsManager.setWithdrawDelayBlocks(100);
+        vm.expectRevert(UnstakeRequestsManager.NotReady.selector);
+        vm.prank(address(staking));
+        unstakeRequestsManager.claim(requestID, request.requester);
+
+        vm.roll(100);
+        vm.expectRevert(UnstakeRequestsManager.NotReady.selector);
+        vm.prank(address(staking));
+        unstakeRequestsManager.claim(requestID, request.requester);
+
+        vm.roll(101);
         _testClaim(requestID, request.requester);
     }
 

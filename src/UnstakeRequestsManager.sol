@@ -84,6 +84,7 @@ contract UnstakeRequestsManager is
     error DoesNotReceiveETH();
     error NotEnoughFunds(uint256 cumulativeETHOnRequest, uint256 allocatedETHForClaims);
     error NotFinalized();
+    error NotReady();
     error NotRequester();
     error NotStakingContract();
 
@@ -120,6 +121,8 @@ contract UnstakeRequestsManager is
 
     /// @dev The internal queue of unstake requests.
     UnstakeRequest[] internal _unstakeRequests;
+
+    uint64 public withdrawDelayBlocks;
 
     /// @notice Configuration for contract initialization.
     struct Init {
@@ -183,6 +186,10 @@ contract UnstakeRequestsManager is
     /// the requested ETH. The unstake request is then removed from the array.
     function claim(uint256 requestID, address requester) external onlyStakingContract {
         UnstakeRequest memory request = _unstakeRequests[requestID];
+
+        if (block.number - request.blockNumber < withdrawDelayBlocks) {
+            revert NotReady();
+        }
 
         if (request.requester == address(0)) {
             revert AlreadyClaimed();
@@ -371,6 +378,15 @@ contract UnstakeRequestsManager is
             this.setNumberOfBlocksToFinalize.selector,
             "setNumberOfBlocksToFinalize(uint256)",
             abi.encode(numberOfBlocksToFinalize_)
+        );
+    }
+
+    function setWithdrawDelayBlocks(uint64 withdrawDelayBlocks_) external onlyRole(MANAGER_ROLE) {
+        withdrawDelayBlocks = withdrawDelayBlocks_;
+        emit ProtocolConfigChanged(
+            this.setWithdrawDelayBlocks.selector,
+            "setWithdrawDelayBlocks(uint64)",
+            abi.encode(withdrawDelayBlocks_)
         );
     }
 
