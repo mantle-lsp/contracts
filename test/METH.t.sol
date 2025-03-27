@@ -14,15 +14,20 @@ contract METHTest is BaseTest {
     address public immutable unstakeRequestsManagerContract = makeAddr("unstakeRequestsManagerContract");
 
     METH public mETH;
+    MockBlockList dummyBlockList;
+
 
     function setUp() virtual public {
+        dummyBlockList = new MockBlockList();
+        address[] memory initialBlockList = new address[](1);
+        initialBlockList[0] = address(dummyBlockList);
         mETH = newMETH(
             proxyAdmin,
             METH.Init({
                 admin: admin,
                 staking: Staking(payable(stakingContract)),
                 unstakeRequestsManager: UnstakeRequestsManager(payable(unstakeRequestsManagerContract)),
-                blockList: IBlockList(address(0))
+                blockList: initialBlockList
             })
         );
     }
@@ -93,17 +98,23 @@ contract METHBlockListTest is METHTest {
         blockList = new MockBlockList();
     }
 
+    function testGetBlockLists() public view {
+        address[] memory b = mETH.getBlockLists();
+        assert(b.length == 1);
+        assert(b[0] == address(dummyBlockList));
+    }
+
     function testNormalUserCannotSetBlockList() public {
         vm.prank(blockedUser);
         vm.expectRevert("AccessControl: account 0x701fb51cd343c6a358dcd69a9b90d1024d3c11c5 is missing role 0x0000000000000000000000000000000000000000000000000000000000000000");
-        mETH.setBlocklist(address(blockList));
+        mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(blockedUser, true);
     }
 
     function testBlockedUserCannotTransfer() public {
         // Set the blockList contract
         vm.prank(admin);
-        mETH.setBlocklist(address(blockList));
+        mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(blockedUser, true);
 
         // Attempt to transfer tokens from the blocked user
@@ -132,7 +143,7 @@ contract METHBlockListTest is METHTest {
 
         // Set the blockList contract
         vm.prank(admin);
-        mETH.setBlocklist(address(blockList));
+        mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(blockedUser, true);
 
         // Transfer tokens from the normal user

@@ -69,7 +69,7 @@ struct DeploymentParams {
     address reporterModifier;
     address[] reporters;
     address payable feesReceiver;
-    IBlockList blockList;
+    address[] blockList;
 }
 
 function deployAll(DeploymentParams memory params) returns (Deployments memory) {

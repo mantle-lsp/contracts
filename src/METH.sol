@@ -9,7 +9,7 @@ import {
     ERC20PermitUpgradeable,
     IERC20PermitUpgradeable
 } from "openzeppelin-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
-
+import {EnumerableSet} from "openzeppelin/utils/structs/EnumerableSet.sol";
 import {IMETH} from "./interfaces/IMETH.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
 import {IUnstakeRequestsManager} from "./interfaces/IUnstakeRequestsManager.sol";
@@ -28,14 +28,17 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
     /// @notice The unstake requests manager contract which has permissions to burn tokens.
     IUnstakeRequestsManager public unstakeRequestsManagerContract;
 
-    IBlockList public blockListContract;
+    using EnumerableSet for EnumerableSet.AddressSet;
+    EnumerableSet.AddressSet private _blockListContracts;
+    event BlockListContractAdded(address indexed blockList);
+    event BlockListContractRemoved(address indexed blockList);
 
     /// @notice Configuration for contract initialization.
     struct Init {
         address admin;
         IStaking staking;
         IUnstakeRequestsManager unstakeRequestsManager;
-        IBlockList blockList;
+        address[] blockList;
     }
 
     constructor() {
@@ -52,7 +55,12 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
         stakingContract = init.staking;
         unstakeRequestsManagerContract = init.unstakeRequestsManager;
-        blockListContract = init.blockList;
+        for (uint256 i = 0; i < init.blockList.length; i++) {
+            address bl = init.blockList[i];
+            if (_blockListContracts.add(bl)) {
+                emit BlockListContractAdded(bl);
+            }
+        }
     }
 
     /// @inheritdoc IMETH
@@ -86,14 +94,20 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         return ERC20PermitUpgradeable.nonces(owner);
     }
 
-    modifier notBlocked(address from, address to) {
-        if (address(blockListContract) == address(0)){
-            _;
-            return;
+    function isBlocked(address account) public view returns (bool) {
+        uint256 length = EnumerableSet.length(_blockListContracts);
+        for (uint256 i = 0; i < length; i++) {
+            if (IBlockList(EnumerableSet.at(_blockListContracts, i)).isBlocked(account)) {
+                return true;
+            }
         }
-        require(!blockListContract.isBlocked(msg.sender), "mETH: 'sender' address blocked");
-        require(!blockListContract.isBlocked(from), "mETH: 'from' address blocked");
-        require(!blockListContract.isBlocked(to), "mETH: 'to' address blocked");
+        return false;
+    }
+
+    modifier notBlocked(address from, address to) {
+        require(!isBlocked(msg.sender), "mETH: 'sender' address blocked");
+        require(!isBlocked(from), "mETH: 'from' address blocked");
+        require(!isBlocked(to), "mETH: 'to' address blocked");
         _;
     }
 
@@ -101,7 +115,17 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         return super._transfer(from, to, amount);
     }
 
-    function setBlocklist(address _blocklist) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        blockListContract = IBlockList(_blocklist);
+    function addBlockListContract(address blockListAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(EnumerableSet.add(_blockListContracts, blockListAddress), "Already added");
+        emit BlockListContractAdded(blockListAddress);
+    }
+    
+    function removeBlockListContract(address blockListAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(EnumerableSet.remove(_blockListContracts, blockListAddress), "Not added");
+        emit BlockListContractRemoved(blockListAddress);
+    }
+    
+    function getBlockLists() external view returns (address[] memory) {
+        return _blockListContracts.values();
     }
 }

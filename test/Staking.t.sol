@@ -74,7 +74,7 @@ contract StakingTest is BaseTest, StakingEvents {
                 admin: admin,
                 staking: Staking(payable(address(stakingProxy))),
                 unstakeRequestsManager: UnstakeRequestsManager(payable(address(0))),
-                blockList: IBlockList(address(0))
+                blockList: new address[](0)
             })
         );
 

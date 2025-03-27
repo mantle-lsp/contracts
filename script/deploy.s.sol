@@ -26,7 +26,7 @@ contract Deploy is Base {
             reporters: reporters,
             feesReceiver: payable(vm.envAddress("FEES_RECEIVER_ADDRESS")),
             depositContract: address(depositContract),
-            blockList: IBlockList(address(0))
+            blockList: new address[](0)
         });
     }
 

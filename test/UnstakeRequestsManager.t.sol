@@ -82,7 +82,7 @@ contract UnstakeRequestsManagerTest is BaseTest, UnstakeRequestsManagerEvents {
                 admin: admin,
                 staking: staking,
                 unstakeRequestsManager: UnstakeRequestsManager(payable(address(proxy))),
-                blockList: IBlockList(address(0))
+                blockList: new address[](0)
             })
         );
 

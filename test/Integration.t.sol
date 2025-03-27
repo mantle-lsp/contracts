@@ -52,7 +52,7 @@ contract IntegrationTest is BaseTest {
             reporterModifier: reporterModifier,
             reporters: reporters,
             feesReceiver: feesReceiver,
-            blockList: IBlockList(address(0))
+            blockList: new address[](0)
         });
     }
 
@@ -538,7 +538,7 @@ contract RoleTransferTest is IntegrationTest {
                 reporterModifier: deployer,
                 reporters: _deploymentParams().reporters,
                 feesReceiver: feesReceiver,
-                blockList: IBlockList(address(0))
+                blockList: new address[](0)
             }),
             deployer
         );
