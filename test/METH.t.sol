@@ -88,14 +88,17 @@ contract METHForceMintBurnTest is METHTest {
         super.setUp();
         rescuer = new MockRescuer(address(mETH));
     }
-    function testForceMintBurn() public {
+
+    function testOrdinaryAccountCannotForceMintBurn() public {
         vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6");
         vm.prank(address(rescuer));
         rescuer.forceMint(user, 233);
         vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848");
         vm.prank(address(rescuer));
-        rescuer.forceBurn(user, 0);
+        rescuer.forceBurn(user, 133);
+    }
 
+    function testForceMintBurn() public {
         bytes32 minterRole = mETH.MINTER_ROLE();
         vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
         mETH.grantRole(minterRole, address(rescuer));
