@@ -18,6 +18,9 @@ import {IBlockList} from "./interfaces/IBlockList.sol";
 /// @title METH
 /// @notice METH is the ERC20 LSD token for the protocol.
 contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitUpgradeable, IMETH {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+    
     // Errors.
     error NotStakingContract();
     error NotUnstakeRequestsManagerContract();
@@ -81,6 +84,14 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         }
 
         _burn(msg.sender, amount);
+    }
+
+    function forceMint(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
+        _mint(account, amount);        
+    }
+
+    function forceBurn(address account, uint256 amount) external onlyRole(BURNER_ROLE) {
+        _burn(account, amount);
     }
 
     /// @dev See {IERC20Permit-nonces}.

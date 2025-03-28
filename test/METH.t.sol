@@ -66,6 +66,52 @@ contract METHMintAndBurnTest is METHTest {
     }
 }
 
+// In practice there may be no need for a standalone Rescuer contract
+contract MockRescuer {
+    METH mETH;
+    constructor(address mETHAddress) {
+        mETH = METH(mETHAddress);
+    }
+    function forceMint(address account, uint256 amount) external {
+        mETH.forceMint(account, amount);
+    }
+    function forceBurn(address account, uint256 amount) external {
+        mETH.forceBurn(account, amount);
+    }
+}
+
+contract METHForceMintBurnTest is METHTest {
+    MockRescuer rescuer;
+    address user = makeAddr("user");
+
+    function setUp() public override {
+        super.setUp();
+        rescuer = new MockRescuer(address(mETH));
+    }
+    function testForceMintBurn() public {
+        vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6");
+        vm.prank(address(rescuer));
+        rescuer.forceMint(user, 233);
+        vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848");
+        vm.prank(address(rescuer));
+        rescuer.forceBurn(user, 0);
+
+        bytes32 minterRole = mETH.MINTER_ROLE();
+        vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
+        mETH.grantRole(minterRole, address(rescuer));
+        vm.prank(address(rescuer));
+        rescuer.forceMint(user, 233);
+
+        bytes32 burnerRole = mETH.BURNER_ROLE();
+        vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
+        mETH.grantRole(burnerRole, address(rescuer));
+        assert(mETH.balanceOf(user) == 233);
+        vm.prank(address(rescuer));
+        rescuer.forceBurn(user, 133);
+        assert(mETH.balanceOf(user) == 100);
+    }
+}
+
 contract MockBlockList is IBlockList {
     mapping(address => bool) private _blockedAccounts;
 
