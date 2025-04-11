@@ -181,6 +181,12 @@ contract METHBlockListTest is METHTest {
         vm.prank(normalUser);
         vm.expectRevert("mETH: 'to' address blocked");
         mETH.transfer(blockedUser, amount);
+
+        // can transfer when block list contract removed
+        vm.prank(admin);
+        mETH.removeBlockListContract(address(blockList));
+        vm.prank(normalUser);
+        mETH.transfer(blockedUser, amount);
     }
 
     function testNormalUserCanTransfer() public {
