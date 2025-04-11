@@ -133,6 +133,7 @@ contract METHBlockListTest is METHTest {
     address public normalUser2 = makeAddr("normalUser2");
     uint256 amount = 100 ether;
     MockBlockList blockList;
+    MockBlockList blockList2;
 
     function setUp() public override {
         super.setUp();
@@ -145,6 +146,7 @@ contract METHBlockListTest is METHTest {
         mETH.mint(normalUser2, amount);
         
         blockList = new MockBlockList();
+        blockList2 = new MockBlockList();
     }
 
     function testGetBlockLists() public view {
@@ -164,7 +166,14 @@ contract METHBlockListTest is METHTest {
         // Set the blockList contract
         vm.prank(admin);
         mETH.addBlockListContract(address(blockList));
+        vm.prank(admin);
+        mETH.addBlockListContract(address(blockList2));
         blockList.setBlocked(blockedUser, true);
+
+        address[] memory blockLists = mETH.getBlockLists();
+        assertEq(blockLists.length, 3);
+        assertEq(blockLists[1], address(blockList));
+        assertEq(blockLists[2], address(blockList2));
 
         // Attempt to transfer tokens from the blocked user
         vm.prank(blockedUser);
@@ -187,6 +196,10 @@ contract METHBlockListTest is METHTest {
         mETH.removeBlockListContract(address(blockList));
         vm.prank(normalUser);
         mETH.transfer(blockedUser, amount);
+
+        blockLists = mETH.getBlockLists();
+        assertEq(blockLists.length, 2);
+        assertEq(blockLists[1], address(blockList2));
     }
 
     function testNormalUserCanTransfer() public {
