@@ -222,4 +222,10 @@ contract METHBlockListTest is METHTest {
         assertEq(mETH.balanceOf(normalUser), 0 ether);
         assertEq(mETH.balanceOf(normalUser2), amount * 2);
     }
+
+    function testRejectInvalidBlockListContract() public {
+        vm.expectRevert("Invalid block list contract");
+        vm.prank(admin);
+        mETH.addBlockListContract(address(6));
+    }
 }

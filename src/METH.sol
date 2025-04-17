@@ -127,6 +127,8 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
     }
 
     function addBlockListContract(address blockListAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        (bool success, ) = blockListAddress.call(abi.encodeWithSignature("isBlocked(address)", address(0)));
+        require(success, "Invalid block list contract");
         require(EnumerableSet.add(_blockListContracts, blockListAddress), "Already added");
         emit BlockListContractAdded(blockListAddress);
     }
