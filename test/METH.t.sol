@@ -6,7 +6,7 @@ import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {METH} from "../src/METH.sol";
 import {Staking} from "../src/Staking.sol";
 import {UnstakeRequestsManager} from "../src/UnstakeRequestsManager.sol";
-
+import {Strings} from "openzeppelin/utils/Strings.sol";
 import {newMETH} from "./utils/Deploy.sol";
 
 contract METHTest is BaseTest {
@@ -72,8 +72,8 @@ contract MockRescuer {
     constructor(address mETHAddress) {
         mETH = METH(mETHAddress);
     }
-    function forceMint(address account, uint256 amount) external {
-        mETH.forceMint(account, amount);
+    function forceMint(address account, uint256 amount, bool excludeBlockList) external {
+        mETH.forceMint(account, amount, excludeBlockList);
     }
     function forceBurn(address account, uint256 amount) external {
         mETH.forceBurn(account, amount);
@@ -92,7 +92,7 @@ contract METHForceMintBurnTest is METHTest {
     function testOrdinaryAccountCannotForceMintBurn() public {
         vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6");
         vm.prank(address(rescuer));
-        rescuer.forceMint(user, 233);
+        rescuer.forceMint(user, 233, false);
         vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848");
         vm.prank(address(rescuer));
         rescuer.forceBurn(user, 133);
@@ -103,7 +103,7 @@ contract METHForceMintBurnTest is METHTest {
         vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
         mETH.grantRole(minterRole, address(rescuer));
         vm.prank(address(rescuer));
-        rescuer.forceMint(user, 233);
+        rescuer.forceMint(user, 233, false);
 
         bytes32 burnerRole = mETH.BURNER_ROLE();
         vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
@@ -112,6 +112,29 @@ contract METHForceMintBurnTest is METHTest {
         vm.prank(address(rescuer));
         rescuer.forceBurn(user, 133);
         assert(mETH.balanceOf(user) == 100);
+    }
+
+    function testForceMintForBlockedAccount() public {
+        bytes32 minterRole = mETH.MINTER_ROLE();
+        vm.prank(mETH.getRoleMember(mETH.DEFAULT_ADMIN_ROLE(), 0));
+        mETH.grantRole(minterRole, address(rescuer));
+
+        vm.prank(address(rescuer));
+        rescuer.forceMint(user, 233, true);
+        assertEq(mETH.balanceOf(user), 233);
+
+        MockBlockList blockList = new MockBlockList();
+        vm.prank(admin);
+        mETH.addBlockListContract(address(blockList));
+        blockList.setBlocked(user, true);
+
+        vm.expectRevert("0x6ca6d1e2d5347bfab1d91e883f1915560e09129d is in block list");
+        vm.prank(address(rescuer));
+        rescuer.forceMint(user, 233, true);
+        assertEq(mETH.balanceOf(user), 233);
+
+        rescuer.forceMint(user, 233, false);
+        assertEq(mETH.balanceOf(user), 466);
     }
 }
 

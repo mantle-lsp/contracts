@@ -10,6 +10,7 @@ import {
     IERC20PermitUpgradeable
 } from "openzeppelin-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import {EnumerableSet} from "openzeppelin/utils/structs/EnumerableSet.sol";
+import {Strings} from "openzeppelin/utils/Strings.sol";
 import {IMETH} from "./interfaces/IMETH.sol";
 import {IStaking} from "./interfaces/IStaking.sol";
 import {IUnstakeRequestsManager} from "./interfaces/IUnstakeRequestsManager.sol";
@@ -86,7 +87,10 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         _burn(msg.sender, amount);
     }
 
-    function forceMint(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
+    function forceMint(address account, uint256 amount, bool excludeBlockList) external onlyRole(MINTER_ROLE) {
+        if (excludeBlockList) {
+            require(!isBlocked(account), string(abi.encodePacked(Strings.toHexString(uint160(account), 20), " is in block list")));
+        }
         _mint(account, amount);        
     }
 
