@@ -81,8 +81,7 @@ contract UnstakeRequestsManagerTest is BaseTest, UnstakeRequestsManagerEvents {
             METH.Init({
                 admin: admin,
                 staking: staking,
-                unstakeRequestsManager: UnstakeRequestsManager(payable(address(proxy))),
-                blockList: new address[](0)
+                unstakeRequestsManager: UnstakeRequestsManager(payable(address(proxy)))
             })
         );
 

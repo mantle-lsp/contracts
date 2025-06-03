@@ -69,7 +69,6 @@ struct DeploymentParams {
     address reporterModifier;
     address[] reporters;
     address payable feesReceiver;
-    address[] blockList;
 }
 
 function deployAll(DeploymentParams memory params) returns (Deployments memory) {
@@ -133,7 +132,7 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
     ds.mETH = initMETH(
         proxyAdmin,
         ITransparentUpgradeableProxy(address(ds.mETH)),
-        METH.Init({admin: params.admin, staking: ds.staking, unstakeRequestsManager: ds.unstakeRequestsManager, blockList: params.blockList})
+        METH.Init({admin: params.admin, staking: ds.staking, unstakeRequestsManager: ds.unstakeRequestsManager})
     );
 
     // Oracle relies on staking and aggregator to process oracle records, so we need to deploy those first.

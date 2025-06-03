@@ -44,7 +44,6 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         address admin;
         IStaking staking;
         IUnstakeRequestsManager unstakeRequestsManager;
-        address[] blockList;
     }
 
     constructor() {
@@ -61,12 +60,6 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
         stakingContract = init.staking;
         unstakeRequestsManagerContract = init.unstakeRequestsManager;
-        for (uint256 i = 0; i < init.blockList.length; i++) {
-            address bl = init.blockList[i];
-            if (_blockListContracts.add(bl)) {
-                emit BlockListContractAdded(bl);
-            }
-        }
     }
 
     /// @inheritdoc IMETH

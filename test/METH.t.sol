@@ -18,16 +18,12 @@ contract METHTest is BaseTest {
 
 
     function setUp() virtual public {
-        dummyBlockList = new MockBlockList();
-        address[] memory initialBlockList = new address[](1);
-        initialBlockList[0] = address(dummyBlockList);
         mETH = newMETH(
             proxyAdmin,
             METH.Init({
                 admin: admin,
                 staking: Staking(payable(stakingContract)),
-                unstakeRequestsManager: UnstakeRequestsManager(payable(unstakeRequestsManagerContract)),
-                blockList: initialBlockList
+                unstakeRequestsManager: UnstakeRequestsManager(payable(unstakeRequestsManagerContract))
             })
         );
     }
@@ -98,10 +94,10 @@ contract METHForceMintBurnTest is METHTest {
     }
 
     function testOrdinaryAccountCannotForceMintBurn() public {
-        vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6");
+        vm.expectRevert("AccessControl: account 0xc7183455a4c133ae270771860664b6b7ec320bb1 is missing role 0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6");
         vm.prank(address(rescuer));
         rescuer.forceMint(user, 233, false);
-        vm.expectRevert("AccessControl: account 0xa0cb889707d426a7a386870a03bc70d1b0697598 is missing role 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848");
+        vm.expectRevert("AccessControl: account 0xc7183455a4c133ae270771860664b6b7ec320bb1 is missing role 0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848");
         vm.prank(address(rescuer));
         rescuer.forceBurn(user, 133);
     }
@@ -175,6 +171,10 @@ contract METHBlockListTest is METHTest {
         bytes32 removeBlockListContractRole = mETH.REMOVE_BLOCK_LIST_CONTRACT_ROLE();
         vm.prank(admin);
         mETH.grantRole(removeBlockListContractRole, removeBlockListContractAccount);
+
+        dummyBlockList = new MockBlockList();
+        vm.prank(addBlockListContractAccount);
+        mETH.addBlockListContract(address(dummyBlockList));
 
         vm.prank(stakingContract);
         mETH.mint(blockedUser, amount);
