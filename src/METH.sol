@@ -19,6 +19,8 @@ import {IBlockList} from "./interfaces/IBlockList.sol";
 /// @title METH
 /// @notice METH is the ERC20 LSD token for the protocol.
 contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitUpgradeable, IMETH {
+    bytes32 public constant ADD_BLOCK_LIST_CONTRACT_ROLE = keccak256("ADD_BLOCK_LIST_CONTRACT_ROLE");
+    bytes32 public constant REMOVE_BLOCK_LIST_CONTRACT_ROLE = keccak256("REMOVE_BLOCK_LIST_CONTRACT_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
     
@@ -130,14 +132,14 @@ contract METH is Initializable, AccessControlEnumerableUpgradeable, ERC20PermitU
         return super._transfer(from, to, amount);
     }
 
-    function addBlockListContract(address blockListAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addBlockListContract(address blockListAddress) external onlyRole(ADD_BLOCK_LIST_CONTRACT_ROLE) {
         (bool success, ) = blockListAddress.call(abi.encodeWithSignature("isBlocked(address)", address(0)));
         require(success, "Invalid block list contract");
         require(EnumerableSet.add(_blockListContracts, blockListAddress), "Already added");
         emit BlockListContractAdded(blockListAddress);
     }
     
-    function removeBlockListContract(address blockListAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function removeBlockListContract(address blockListAddress) external onlyRole(REMOVE_BLOCK_LIST_CONTRACT_ROLE) {
         require(EnumerableSet.remove(_blockListContracts, blockListAddress), "Not added");
         emit BlockListContractRemoved(blockListAddress);
     }

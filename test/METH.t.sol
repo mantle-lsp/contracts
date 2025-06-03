@@ -87,6 +87,14 @@ contract METHForceMintBurnTest is METHTest {
     function setUp() public override {
         super.setUp();
         rescuer = new MockRescuer(address(mETH));
+
+        bytes32 addBlockListContractRole = mETH.ADD_BLOCK_LIST_CONTRACT_ROLE();
+        vm.prank(admin);
+        mETH.grantRole(addBlockListContractRole, addBlockListContractAccount);
+        bytes32 removeBlockListContractRole = mETH.REMOVE_BLOCK_LIST_CONTRACT_ROLE();
+        vm.prank(admin);
+        mETH.grantRole(removeBlockListContractRole, removeBlockListContractAccount);
+
     }
 
     function testOrdinaryAccountCannotForceMintBurn() public {
@@ -124,7 +132,7 @@ contract METHForceMintBurnTest is METHTest {
         assertEq(mETH.balanceOf(user), 233);
 
         MockBlockList blockList = new MockBlockList();
-        vm.prank(admin);
+        vm.prank(addBlockListContractAccount);
         mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(user, true);
 
@@ -161,6 +169,13 @@ contract METHBlockListTest is METHTest {
     function setUp() public override {
         super.setUp();
 
+        bytes32 addBlockListContractRole = mETH.ADD_BLOCK_LIST_CONTRACT_ROLE();
+        vm.prank(admin);
+        mETH.grantRole(addBlockListContractRole, addBlockListContractAccount);
+        bytes32 removeBlockListContractRole = mETH.REMOVE_BLOCK_LIST_CONTRACT_ROLE();
+        vm.prank(admin);
+        mETH.grantRole(removeBlockListContractRole, removeBlockListContractAccount);
+
         vm.prank(stakingContract);
         mETH.mint(blockedUser, amount);
         vm.prank(stakingContract);
@@ -180,16 +195,27 @@ contract METHBlockListTest is METHTest {
 
     function testNormalUserCannotSetBlockList() public {
         vm.prank(blockedUser);
-        vm.expectRevert("AccessControl: account 0x701fb51cd343c6a358dcd69a9b90d1024d3c11c5 is missing role 0x0000000000000000000000000000000000000000000000000000000000000000");
+        vm.expectRevert("AccessControl: account 0x701fb51cd343c6a358dcd69a9b90d1024d3c11c5 is missing role 0xd3d225be1126d845fcf8733ea56e6e51b96ef5190bf72aae9f96e0bef924e437");
+        mETH.addBlockListContract(address(blockList));
+        vm.prank(admin);
+        vm.expectRevert("AccessControl: account 0xaa10a84ce7d9ae517a52c6d5ca153b369af99ecf is missing role 0xd3d225be1126d845fcf8733ea56e6e51b96ef5190bf72aae9f96e0bef924e437");
         mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(blockedUser, true);
     }
 
-    function testBlockedUserCannotTransfer() public {
-        // Set the blockList contract
-        vm.prank(admin);
+    function testNormalUserCannotRemoveBlockList() public {
+        vm.prank(addBlockListContractAccount);
         mETH.addBlockListContract(address(blockList));
         vm.prank(admin);
+        vm.expectRevert("AccessControl: account 0xaa10a84ce7d9ae517a52c6d5ca153b369af99ecf is missing role 0xa7e5f4407fb7a6903f54f2279f3aefe796f21c33a3ea2caae0d0150b895a61a9");
+        mETH.removeBlockListContract(address(blockList));
+    }
+
+    function testBlockedUserCannotTransfer() public {
+        // Set the blockList contract
+        vm.prank(addBlockListContractAccount);
+        mETH.addBlockListContract(address(blockList));
+        vm.prank(addBlockListContractAccount);
         mETH.addBlockListContract(address(blockList2));
         blockList.setBlocked(blockedUser, true);
 
@@ -215,7 +241,7 @@ contract METHBlockListTest is METHTest {
         mETH.transfer(blockedUser, amount);
 
         // can transfer when block list contract removed
-        vm.prank(admin);
+        vm.prank(removeBlockListContractAccount);
         mETH.removeBlockListContract(address(blockList));
         vm.prank(normalUser);
         mETH.transfer(blockedUser, amount);
@@ -233,7 +259,7 @@ contract METHBlockListTest is METHTest {
         mETH.transfer(blockedUser, amount);
 
         // Set the blockList contract
-        vm.prank(admin);
+        vm.prank(addBlockListContractAccount);
         mETH.addBlockListContract(address(blockList));
         blockList.setBlocked(blockedUser, true);
 
@@ -248,7 +274,7 @@ contract METHBlockListTest is METHTest {
 
     function testRejectInvalidBlockListContract() public {
         vm.expectRevert("Invalid block list contract");
-        vm.prank(admin);
+        vm.prank(addBlockListContractAccount);
         mETH.addBlockListContract(address(6));
     }
 }

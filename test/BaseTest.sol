@@ -15,6 +15,8 @@ contract BaseTest is Test, ProtocolEvents {
     bytes public constant NoExpectedError = "";
 
     address public immutable admin = makeAddr("admin");
+    address public immutable addBlockListContractAccount = makeAddr("addBlockListContract");
+    address public immutable removeBlockListContractAccount = makeAddr("removeBlockListContract");
 
     TimelockController public immutable proxyAdmin;
 
