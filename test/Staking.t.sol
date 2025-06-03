@@ -73,8 +73,7 @@ contract StakingTest is BaseTest, StakingEvents {
             METH.Init({
                 admin: admin,
                 staking: Staking(payable(address(stakingProxy))),
-                unstakeRequestsManager: UnstakeRequestsManager(payable(address(0))),
-                blockList: new address[](0)
+                unstakeRequestsManager: UnstakeRequestsManager(payable(address(0)))
             })
         );
 

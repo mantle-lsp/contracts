@@ -51,8 +51,7 @@ contract IntegrationTest is BaseTest {
             depositContract: address(depositContract),
             reporterModifier: reporterModifier,
             reporters: reporters,
-            feesReceiver: feesReceiver,
-            blockList: new address[](0)
+            feesReceiver: feesReceiver
         });
     }
 
@@ -537,8 +536,7 @@ contract RoleTransferTest is IntegrationTest {
                 depositContract: address(depositContract),
                 reporterModifier: deployer,
                 reporters: _deploymentParams().reporters,
-                feesReceiver: feesReceiver,
-                blockList: new address[](0)
+                feesReceiver: feesReceiver
             }),
             deployer
         );
