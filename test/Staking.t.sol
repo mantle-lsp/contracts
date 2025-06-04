@@ -10,7 +10,7 @@ import {Math} from "openzeppelin/utils/math/Math.sol";
 
 import {IUnstakeRequestsManager, UnstakeRequest} from "../src/interfaces/IUnstakeRequestsManager.sol";
 import {IOracleRead} from "../src/interfaces/IOracle.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {METH} from "../src/METH.sol";
 import {Staking, StakingEvents} from "../src/Staking.sol";
 import {UnstakeRequestsManager} from "../src/UnstakeRequestsManager.sol";

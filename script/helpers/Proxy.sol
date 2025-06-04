@@ -11,6 +11,7 @@ import {AccessControlUpgradeable} from "openzeppelin-upgradeable/access/AccessCo
 import {AccessControl} from "openzeppelin/access/AccessControl.sol";
 
 import {IDepositContract} from "../../src/interfaces/IDepositContract.sol";
+import {IBlockList} from "../../src/interfaces/IBlockList.sol";
 import {Pauser} from "../../src/Pauser.sol";
 import {Oracle} from "../../src/Oracle.sol";
 import {OracleQuorumManager} from "../../src/OracleQuorumManager.sol";

@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 
 import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {
     deployAll, grantAndRenounceAllRoles, grantAllAdminRoles, Deployments, DeploymentParams
 } from "./helpers/Proxy.sol";

@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {BaseTest} from "./BaseTest.sol";
 import {deployAll, grantAndRenounceAllRoles, DeploymentParams, Deployments} from "../script/helpers/Proxy.sol";
 import {IOracle, IOracleWrite, OracleRecord} from "../src/interfaces/IOracle.sol";
-
+import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {Oracle} from "../src/Oracle.sol";
 import {ReturnsAggregator} from "../src/ReturnsAggregator.sol";
 import {Staking} from "../src/Staking.sol";
