@@ -26,6 +26,13 @@ tasks:
           ENV_FILE: ".goerli.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
+  "hoodi:deployAll":
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".hoodi.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
   "mainnet:deployAll":
     desc: "Deploys all the contracts using variables from the associated environment file for the network"
     cmds:
