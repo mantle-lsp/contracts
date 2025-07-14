@@ -834,3 +834,54 @@ contract UnstakeRequestsEmergencyCancelUnfinalizedTest is UnstakeRequestsManager
         assertEq(unstakeRequestsManager.latestCumulativeETHRequested(), 1 * generalTest.ethRequested);
     }
 }
+
+contract UnstakeRequestsQueueBugTest is UnstakeRequestsManagerTest {
+    function testQueueDeleteVsPopBug() public {
+        uint256 idA = createRequest(generalTest);
+        SampleRequest memory reqB = SampleRequest({
+            requester: makeAddr("b"),
+            mETHLocked: 0.2 ether,
+            ethRequested: 0.2 ether
+        });
+        uint256 idB = createRequest(reqB);
+        OracleRecord memory record;
+        record.updateEndBlock = uint64(block.number + unstakeRequestsManager.numberOfBlocksToFinalize());
+        oracle.pushRecord(record);
+        vm.deal(address(staking), generalTest.ethRequested + reqB.ethRequested);
+        vm.prank(address(staking));
+        unstakeRequestsManager.allocateETH{value: generalTest.ethRequested + reqB.ethRequested}();
+        _mintMETH(address(unstakeRequestsManager), generalTest.mETHLocked + reqB.mETHLocked);
+        vm.prank(address(staking));
+        unstakeRequestsManager.claim(idB, reqB.requester);
+        assertEq(unstakeRequestsManager.nextRequestId(), 2, "Queue length should remain 2 after claim");
+        UnstakeRequest memory slotA = unstakeRequestsManager.requestByID(idA);
+        UnstakeRequest memory slotB = unstakeRequestsManager.requestByID(idB);
+        assertEq(slotB.requester, address(0), "Slot B should be zeroed after claim");
+        assertEq(slotA.requester, generalTest.requester, "Slot A should be unchanged");
+
+        setUp();
+        idA = createRequest(generalTest);
+        reqB = SampleRequest({
+            requester: makeAddr("b"),
+            mETHLocked: 0.2 ether,
+            ethRequested: 0.2 ether
+        });
+        idB = createRequest(reqB);
+        uint64 finalizeBlock = uint64(block.number + unstakeRequestsManager.numberOfBlocksToFinalize());
+        OracleRecord memory recB;
+        recB.updateEndBlock = finalizeBlock;
+        oracle.pushRecord(recB);
+        vm.deal(address(staking), generalTest.ethRequested + reqB.ethRequested);
+        vm.prank(address(staking));
+        unstakeRequestsManager.allocateETH{value: generalTest.ethRequested + reqB.ethRequested}();
+        _mintMETH(address(unstakeRequestsManager), generalTest.mETHLocked + reqB.mETHLocked);
+        vm.prank(address(staking));
+        unstakeRequestsManager.claim(idB, reqB.requester);
+        vm.prank(requestCanceller);
+        bool hasMore = unstakeRequestsManager.cancelUnfinalizedRequests(1);
+        assertEq(unstakeRequestsManager.nextRequestId(), 2, "Queue length remains 2: A is stuck");
+        slotA = unstakeRequestsManager.requestByID(idA);
+        assertEq(slotA.requester, generalTest.requester, "Slot A is still present and not cancelled");
+        assertTrue(hasMore == false, "cancelUnfinalizedRequests returns false, but unfinalized request remains");
+    }
+}

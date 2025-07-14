@@ -13,4 +13,8 @@ interface IMETH is IERC20Upgradeable, IERC20PermitUpgradeable {
     /// @notice Burn mETH from the msg.sender.
     /// @param amount The amount of tokens to burn.
     function burn(uint256 amount) external;
+
+    /// @notice Whether the account is blocked by mETH.
+    /// @param account The account to check.
+    function isBlocked(address account) external returns (bool);
 }
