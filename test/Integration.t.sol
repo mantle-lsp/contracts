@@ -8,6 +8,7 @@ import {IBlockList} from "../src/interfaces/IBlockList.sol";
 import {Oracle} from "../src/Oracle.sol";
 import {ReturnsAggregator} from "../src/ReturnsAggregator.sol";
 import {Staking} from "../src/Staking.sol";
+import {MockBlockList} from "./METH.t.sol";
 
 import {deployDepositContract, IDepositContract} from "./doubles/DepositContract.sol";
 import {SignerUtils} from "./utils/SignerUtils.sol";
@@ -411,6 +412,46 @@ contract MaximumMETHSupplyStakeUnstakeTest is WithStateTest {
         vm.prank(alice);
         ds.staking.claimUnstakeRequest(requestId);
 
+        // Alice receives more than 1 ether back (earning rewards).
+        assertGt(alice.balance - prevAliceBalance, 1 ether);
+    }
+}
+
+contract BlockedAccountCannotClaimTest is WithStateTest {
+    uint256 private prevAliceBalance;
+    uint256 private requestId;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        prevAliceBalance = alice.balance;
+        vm.startPrank(alice);
+        ds.mETH.approve(address(ds.staking), 1 ether);
+        requestId = ds.staking.unstakeRequest({methAmount: 1 ether, minETHAmount: 0 ether});
+        vm.stopPrank();
+
+        vm.prank(allocator);
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 1 ether, allocateToDeposits: 0});
+
+        _reportNormalOperation({blockDelta: 1000, windowNumInitiated: 0, windowNumFullyWithdrawn: 0});
+    }
+
+
+    function testClaimerBlocked() public {
+        MockBlockList blockList = new MockBlockList();
+        blockList.setBlocked(alice, true);
+        vm.startPrank(admin);
+        ds.mETH.grantRole(ds.mETH.ADD_BLOCK_LIST_CONTRACT_ROLE(), admin);
+        ds.mETH.addBlockListContract(address(blockList));
+        vm.stopPrank();
+
+        vm.prank(alice);
+        vm.expectRevert("mETH: 'sender' address blocked");
+        ds.staking.claimUnstakeRequest(requestId);
+
+        blockList.setBlocked(alice, false);
+        vm.prank(alice);
+        ds.staking.claimUnstakeRequest(requestId);
         // Alice receives more than 1 ether back (earning rewards).
         assertGt(alice.balance - prevAliceBalance, 1 ether);
     }
