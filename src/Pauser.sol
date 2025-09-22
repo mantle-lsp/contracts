@@ -49,6 +49,9 @@ contract Pauser is Initializable, AccessControlEnumerableUpgradeable, IPauser, P
     /// @notice Oracle contract which has permissions to pause the protocol.
     IOracle public oracle;
 
+    /// @inheritdoc IPauserRead
+    bool public isLiquidityBufferPaused;
+
     /// @notice Configuration for contract initialization.
     struct Init {
         address admin;
@@ -108,6 +111,13 @@ contract Pauser is Initializable, AccessControlEnumerableUpgradeable, IPauser, P
         _setIsAllocateETHPaused(isPaused);
     }
 
+    /// @notice Pauses or unpauses liquidity buffer.
+    /// @dev If pausing, checks if the caller has the pauser role. If unpausing,
+    /// checks if the caller has the unpauser role.
+    function setIsLiquidityBufferPaused(bool isPaused) external onlyPauserUnpauserRole(isPaused) {
+        _setIsLiquidityBufferPaused(isPaused);
+    }
+
     /// @inheritdoc IPauserWrite
     /// @dev Can be called by the oracle or any account with the pauser role.
     function pauseAll() external {
@@ -118,6 +128,7 @@ contract Pauser is Initializable, AccessControlEnumerableUpgradeable, IPauser, P
         _setIsInitiateValidatorsPaused(true);
         _setIsSubmitOracleRecordsPaused(true);
         _setIsAllocateETHPaused(true);
+        _setIsLiquidityBufferPaused(true);
     }
 
     /// @notice Unpauses all actions.
@@ -127,6 +138,7 @@ contract Pauser is Initializable, AccessControlEnumerableUpgradeable, IPauser, P
         _setIsInitiateValidatorsPaused(false);
         _setIsSubmitOracleRecordsPaused(false);
         _setIsAllocateETHPaused(false);
+        _setIsLiquidityBufferPaused(false);
     }
 
     function _verifyPauserOrOracle() internal view {
@@ -160,6 +172,11 @@ contract Pauser is Initializable, AccessControlEnumerableUpgradeable, IPauser, P
     function _setIsAllocateETHPaused(bool isPaused) internal {
         isAllocateETHPaused = isPaused;
         emit FlagUpdated(this.isAllocateETHPaused.selector, isPaused, "isAllocateETHPaused");
+    }
+
+    function _setIsLiquidityBufferPaused(bool isPaused) internal {
+        isLiquidityBufferPaused = isPaused;
+        emit FlagUpdated(this.isLiquidityBufferPaused.selector, isPaused, "isLiquidityBufferPaused");
     }
 
     modifier onlyPauserUnpauserRole(bool isPaused) {

@@ -10,6 +10,7 @@ contract PauserStub is IPauser {
     bool public isSubmitOracleRecordsPaused = false;
     bool public isAllocateETHPaused = false;
     bool public isProcessRecordsPaused = false;
+    bool public isLiquidityBufferPaused = false;
 
     function pauseAll() external {}
 }

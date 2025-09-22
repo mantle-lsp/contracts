@@ -24,6 +24,8 @@ import {newMETH, newUnstakeRequestsManager} from "./utils/Deploy.sol";
 import {generateValidatorParams, to_little_endian_64} from "./utils/ValidatorUtils.sol";
 import {upgradeToAndCall} from "../script/helpers/Proxy.sol";
 import {BaseTest} from "./BaseTest.sol";
+import {ILiquidityBuffer} from "../src/liquidityBuffer/interfaces/ILiquidityBuffer.sol";
+import {LiquidityBufferStub} from "./doubles/LiquidityBufferStub.sol";
 
 contract TestableStaking is Staking {
     function setUnallocatedETH(uint256 newUnallocatedETH) public {
@@ -56,11 +58,15 @@ contract StakingTest is BaseTest, StakingEvents {
 
     UnstakeRequestsManager public unstakeManager;
 
+    ILiquidityBuffer public liquidityBuffer;
+
     function setUp() public {
         depositContract = deployDepositContract();
         oracle = new OracleStub();
 
         pauser = new PauserStub();
+
+        liquidityBuffer = new LiquidityBufferStub();
 
         // Deploy proxy manually for custom stubbed contract.
         TestableStaking _staking = new TestableStaking();
@@ -102,7 +108,8 @@ contract StakingTest is BaseTest, StakingEvents {
             depositContract: depositContract,
             oracle: oracle,
             returnsAggregator: returnsAggregator,
-            unstakeRequestsManager: unstakeManager
+            unstakeRequestsManager: unstakeManager,
+            liquidityBuffer: liquidityBuffer
         });
         upgradeToAndCall(proxyAdmin, stakingProxy, address(_staking), abi.encodeCall(Staking.initialize, init));
         tStaking = TestableStaking(payable(address(stakingProxy)));
@@ -491,6 +498,8 @@ contract TotalControlledTest is StakingTest {
         uint256 unstakeBalance;
         uint128 totalConsensus;
         uint128 processedDeposits;
+        uint256 liquidityBufferAvailableBalance;
+        uint256 liquidityBufferCumulativeDrawdown;
         uint256 wantTotalControlled;
     }
 
@@ -502,6 +511,18 @@ contract TotalControlledTest is StakingTest {
             address(unstakeManager),
             abi.encodeCall(UnstakeRequestsManager.balance, ()),
             abi.encode(uint256(tt.unstakeBalance))
+        );
+
+        // Mock LiquidityBuffer calls
+        vm.mockCall(
+            address(liquidityBuffer),
+            abi.encodeCall(ILiquidityBuffer.getAvailableBalance, ()),
+            abi.encode(tt.liquidityBufferAvailableBalance)
+        );
+        vm.mockCall(
+            address(liquidityBuffer),
+            abi.encodeCall(ILiquidityBuffer.cumulativeDrawdown, ()),
+            abi.encode(tt.liquidityBufferCumulativeDrawdown)
         );
 
         OracleRecord memory record;
@@ -523,7 +544,9 @@ contract TotalControlledTest is StakingTest {
                 unstakeBalance: 10 ether,
                 totalConsensus: 920 ether,
                 processedDeposits: 900 ether,
-                wantTotalControlled: 1126 ether
+                liquidityBufferAvailableBalance: 50 ether,
+                liquidityBufferCumulativeDrawdown: 5 ether,
+                wantTotalControlled: 1171 ether
             })
         );
     }
@@ -534,9 +557,19 @@ contract TotalControlledTest is StakingTest {
         uint128 totalDepositedToValidators,
         uint128 unstakeBalance,
         uint128 totalConsensus,
-        uint128 processedDeposits
+        uint128 processedDeposits,
+        uint128 liquidityBufferAvailableBalance,
+        uint128 liquidityBufferCumulativeDrawdown
     ) public {
         vm.assume(totalDepositedToValidators >= processedDeposits);
+        vm.assume(liquidityBufferAvailableBalance >= liquidityBufferCumulativeDrawdown);
+
+        // Calculate expected total controlled to avoid stack too deep
+        uint256 expectedTotal = uint256(unallocatedETH) + uint256(allocatedETHForDeposits);
+        expectedTotal += uint256(totalDepositedToValidators) + uint256(unstakeBalance) + uint256(totalConsensus);
+        expectedTotal -= uint256(processedDeposits);
+        expectedTotal += uint256(liquidityBufferAvailableBalance);
+        expectedTotal -= uint256(liquidityBufferCumulativeDrawdown);
 
         _test(
             TestCase({
@@ -546,9 +579,9 @@ contract TotalControlledTest is StakingTest {
                 unstakeBalance: unstakeBalance,
                 totalConsensus: totalConsensus,
                 processedDeposits: processedDeposits,
-                wantTotalControlled: uint256(unallocatedETH) + uint256(allocatedETHForDeposits)
-                    + uint256(totalDepositedToValidators) + uint256(unstakeBalance) + uint256(totalConsensus)
-                    - uint256(processedDeposits)
+                liquidityBufferAvailableBalance: liquidityBufferAvailableBalance,
+                liquidityBufferCumulativeDrawdown: liquidityBufferCumulativeDrawdown,
+                wantTotalControlled: expectedTotal
             })
         );
     }
@@ -980,6 +1013,7 @@ contract AllocateETHTest is StakingTest {
         uint256 unallocatedETH;
         uint128 allocateToDeposits;
         uint128 allocateToUnstakeRequestsManager;
+        uint128 allocateToLiquidityBuffer;
     }
 
     function _test(TestCase memory tt, bytes memory err) internal {
@@ -990,7 +1024,7 @@ contract AllocateETHTest is StakingTest {
         uint256 prevUnallocatedETH = staking.unallocatedETH();
         uint256 prevAllocatedToDeposits = staking.allocatedETHForDeposits();
         uint256 prevAllocatedToUnstakeRequestsManager = unstakeManager.allocatedETHForClaims();
-        uint256 totalAllocated = uint256(tt.allocateToUnstakeRequestsManager) + uint256(tt.allocateToDeposits);
+        uint256 totalAllocated = uint256(tt.allocateToUnstakeRequestsManager) + uint256(tt.allocateToDeposits) + uint256(tt.allocateToLiquidityBuffer);
 
         bool shouldErr = err.length > 0;
         if (shouldErr) {
@@ -1005,12 +1039,18 @@ contract AllocateETHTest is StakingTest {
                 vm.expectEmit(true, true, true, true, address(staking));
                 emit AllocatedETHToUnstakeRequestsManager(tt.allocateToUnstakeRequestsManager);
             }
+
+            if (tt.allocateToLiquidityBuffer > 0) {
+                vm.expectEmit(true, true, true, true, address(staking));
+                emit AllocatedETHToLiquidityBuffer(tt.allocateToLiquidityBuffer);
+            }
         }
 
         vm.prank(tt.caller);
         staking.allocateETH({
             allocateToUnstakeRequestsManager: tt.allocateToUnstakeRequestsManager,
-            allocateToDeposits: tt.allocateToDeposits
+            allocateToDeposits: tt.allocateToDeposits,
+            allocateToLiquidityBuffer: tt.allocateToLiquidityBuffer
         });
 
         assertEq(staking.unallocatedETH(), prevUnallocatedETH - (shouldErr ? 0 : totalAllocated));
@@ -1027,21 +1067,22 @@ contract AllocateETHTest is StakingTest {
         TestCase memory tt = TestCase({
             caller: allocator,
             unallocatedETH: 100 ether,
-            allocateToDeposits: 90 ether,
-            allocateToUnstakeRequestsManager: 10 ether
+            allocateToDeposits: 80 ether,
+            allocateToUnstakeRequestsManager: 10 ether,
+            allocateToLiquidityBuffer: 10 ether
         });
 
         _test(tt, NoExpectedError);
     }
 
     function testSuccessFuzzed(TestCase memory tt) public {
-        vm.assume(uint256(tt.allocateToDeposits) + uint256(tt.allocateToUnstakeRequestsManager) <= tt.unallocatedETH);
+        vm.assume(uint256(tt.allocateToDeposits) + uint256(tt.allocateToUnstakeRequestsManager) + uint256(tt.allocateToLiquidityBuffer) <= tt.unallocatedETH);
         tt.caller = allocator;
         _test(tt, NoExpectedError);
     }
 
     function testNotEnoughUnallocatedETHToAllocate(TestCase memory tt) public {
-        vm.assume((uint256(tt.allocateToDeposits) + uint256(tt.allocateToUnstakeRequestsManager)) > tt.unallocatedETH);
+        vm.assume((uint256(tt.allocateToDeposits) + uint256(tt.allocateToUnstakeRequestsManager) + uint256(tt.allocateToLiquidityBuffer)) > tt.unallocatedETH);
         tt.caller = allocator;
         _test(tt, abi.encodeWithSelector(Staking.NotEnoughUnallocatedETH.selector));
     }
@@ -1076,6 +1117,132 @@ contract ReceiveReturnsTest is StakingTest {
         staking.receiveReturns{value: ethReturns}();
 
         assertEq(staking.unallocatedETH(), prevUnallocatedETH + ethReturns);
+    }
+}
+
+contract ReceiveReturnsFromLiquidityBufferTest is StakingTest {
+    function testSuccess(uint256 ethReturns) public {
+        uint256 prevUnallocatedETH = staking.unallocatedETH();
+
+        vm.deal(address(liquidityBuffer), ethReturns);
+
+        vm.expectEmit(address(staking));
+        emit ReturnsReceivedFromLiquidityBuffer(ethReturns);
+        vm.prank(address(liquidityBuffer));
+        staking.receiveReturnsFromLiquidityBuffer{value: ethReturns}();
+
+        assertEq(staking.unallocatedETH(), prevUnallocatedETH + ethReturns);
+    }
+
+    function testNotLiquidityBuffer(address vandal) public {
+        vm.assume(vandal != address(liquidityBuffer));
+        vm.assume(vandal != address(proxyAdmin));
+        
+        vm.deal(vandal, 1 ether);
+        vm.expectRevert(Staking.NotLiquidityBuffer.selector);
+        vm.prank(vandal);
+        staking.receiveReturnsFromLiquidityBuffer{value: 1 ether}();
+    }
+}
+
+contract LiquidityBufferIntegrationTest is StakingTest {
+    function testAllocateETHToLiquidityBuffer() public {
+        uint256 unallocatedETH = 100 ether;
+        uint256 allocateToLiquidityBuffer = 20 ether;
+        
+        vm.deal(address(staking), unallocatedETH);
+        tStaking.setUnallocatedETH(unallocatedETH);
+
+        uint256 prevUnallocatedETH = staking.unallocatedETH();
+        uint256 prevLiquidityBufferBalance = address(liquidityBuffer).balance;
+
+        vm.expectEmit(true, true, true, true, address(staking));
+        emit AllocatedETHToLiquidityBuffer(allocateToLiquidityBuffer);
+
+        vm.prank(allocator);
+        staking.allocateETH({
+            allocateToUnstakeRequestsManager: 0,
+            allocateToDeposits: 0,
+            allocateToLiquidityBuffer: allocateToLiquidityBuffer
+        });
+
+        assertEq(staking.unallocatedETH(), prevUnallocatedETH - allocateToLiquidityBuffer);
+        assertEq(address(liquidityBuffer).balance, prevLiquidityBufferBalance + allocateToLiquidityBuffer);
+    }
+
+    function testAllocateETHToLiquidityBufferWithOtherAllocations() public {
+        uint256 unallocatedETH = 100 ether;
+        uint256 allocateToUnstakeRequestsManager = 30 ether;
+        uint256 allocateToDeposits = 40 ether;
+        uint256 allocateToLiquidityBuffer = 20 ether;
+        
+        vm.deal(address(staking), unallocatedETH);
+        tStaking.setUnallocatedETH(unallocatedETH);
+
+        uint256 prevUnallocatedETH = staking.unallocatedETH();
+        uint256 prevAllocatedToDeposits = staking.allocatedETHForDeposits();
+        uint256 prevLiquidityBufferBalance = address(liquidityBuffer).balance;
+
+        vm.expectEmit(true, true, true, true, address(staking));
+        emit AllocatedETHToDeposits(allocateToDeposits);
+        
+        vm.expectEmit(true, true, true, true, address(staking));
+        emit AllocatedETHToUnstakeRequestsManager(allocateToUnstakeRequestsManager);
+        
+        vm.expectEmit(true, true, true, true, address(staking));
+        emit AllocatedETHToLiquidityBuffer(allocateToLiquidityBuffer);
+
+        vm.prank(allocator);
+        staking.allocateETH({
+            allocateToUnstakeRequestsManager: allocateToUnstakeRequestsManager,
+            allocateToDeposits: allocateToDeposits,
+            allocateToLiquidityBuffer: allocateToLiquidityBuffer
+        });
+
+        assertEq(staking.unallocatedETH(), prevUnallocatedETH - (allocateToUnstakeRequestsManager + allocateToDeposits + allocateToLiquidityBuffer));
+        assertEq(staking.allocatedETHForDeposits(), prevAllocatedToDeposits + allocateToDeposits);
+        assertEq(address(liquidityBuffer).balance, prevLiquidityBufferBalance + allocateToLiquidityBuffer);
+    }
+
+    function testAllocateETHToLiquidityBufferInsufficientFunds() public {
+        uint256 unallocatedETH = 50 ether;
+        uint256 allocateToLiquidityBuffer = 60 ether;
+        
+        vm.deal(address(staking), unallocatedETH);
+        tStaking.setUnallocatedETH(unallocatedETH);
+
+        vm.expectRevert(Staking.NotEnoughUnallocatedETH.selector);
+        vm.prank(allocator);
+        staking.allocateETH({
+            allocateToUnstakeRequestsManager: 0,
+            allocateToDeposits: 0,
+            allocateToLiquidityBuffer: allocateToLiquidityBuffer
+        });
+    }
+
+    function testLiquidityBufferInTotalControlled() public {
+        uint256 unallocatedETH = 100 ether;
+        uint256 liquidityBufferAvailableBalance = 50 ether;
+        uint256 liquidityBufferCumulativeDrawdown = 10 ether;
+        
+        tStaking.setUnallocatedETH(unallocatedETH);
+        
+        // Mock LiquidityBuffer calls
+        vm.mockCall(
+            address(liquidityBuffer),
+            abi.encodeCall(ILiquidityBuffer.getAvailableBalance, ()),
+            abi.encode(liquidityBufferAvailableBalance)
+        );
+        vm.mockCall(
+            address(liquidityBuffer),
+            abi.encodeCall(ILiquidityBuffer.cumulativeDrawdown, ()),
+            abi.encode(liquidityBufferCumulativeDrawdown)
+        );
+
+        uint256 expectedTotalControlled = unallocatedETH + liquidityBufferAvailableBalance - liquidityBufferCumulativeDrawdown;
+        assertEq(staking.totalControlled(), expectedTotalControlled);
+
+        vm.clearMockedCalls();
     }
 }
 

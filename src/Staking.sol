@@ -16,6 +16,8 @@ import {IPauserRead} from "./interfaces/IPauser.sol";
 import {IStaking, IStakingReturnsWrite, IStakingInitiationRead} from "./interfaces/IStaking.sol";
 import {UnstakeRequest, IUnstakeRequestsManager} from "./interfaces/IUnstakeRequestsManager.sol";
 
+import {ILiquidityBuffer} from "./liquidityBuffer/interfaces/ILiquidityBuffer.sol";
+
 /// @notice Events emitted by the staking contract.
 interface StakingEvents {
     /// @notice Emitted when a user stakes ETH and receives mETH.
@@ -54,6 +56,14 @@ interface StakingEvents {
     /// @notice Emitted when the protocol has received returns from the returns aggregator.
     /// @param amount The amount of ETH received.
     event ReturnsReceived(uint256 amount);
+
+    /// @notice Emitted when the protocol has received returns from the returns aggregator.
+    /// @param amount The amount of ETH received.
+    event ReturnsReceivedFromLiquidityBuffer(uint256 amount);
+
+    /// @notice Emitted when the protocol has allocated ETH to the liquidity buffer.
+    /// @param amount The amount of ETH allocated to the liquidity buffer.
+    event AllocatedETHToLiquidityBuffer(uint256 amount);
 }
 
 /// @title Staking
@@ -71,6 +81,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
     error NotEnoughDepositETH();
     error NotEnoughUnallocatedETH();
     error NotReturnsAggregator();
+    error NotLiquidityBuffer();
     error NotUnstakeRequestsManager();
     error Paused();
     error PreviouslyUsedValidator();
@@ -236,6 +247,10 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
     /// scales up this value will be increased to allow for more staking.
     uint256 public maximumMETHSupply;
 
+    /// @notice The address for the liquidity buffer contract to push funds.
+    /// @dev See also {receiveReturnsFromLiquidityBuffer}.
+    ILiquidityBuffer public liquidityBuffer;
+
     /// @notice Configuration for contract initialization.
     struct Init {
         address admin;
@@ -249,6 +264,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         IOracleReadRecord oracle;
         IPauserRead pauser;
         IUnstakeRequestsManager unstakeRequestsManager;
+        ILiquidityBuffer liquidityBuffer;
     }
 
     constructor() {
@@ -290,6 +306,8 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         // Set the maximum mETH supply to some sensible amount which is expected to be changed as the
         // protocol ramps up.
         maximumMETHSupply = 1024 ether;
+
+        liquidityBuffer = init.liquidityBuffer;
     }
 
     /// @notice Interface for users to stake their ETH with the protocol. Note: when allowlist is enabled, only users
@@ -409,7 +427,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
 
     /// @notice Allocates ETH from the unallocatedETH balance to the unstake requests manager to fill pending requests
     /// and adds to the allocatedETHForDeposits balance that is used to initiate new validators.
-    function allocateETH(uint256 allocateToUnstakeRequestsManager, uint256 allocateToDeposits)
+    function allocateETH(uint256 allocateToUnstakeRequestsManager, uint256 allocateToDeposits, uint256 allocateToLiquidityBuffer)
         external
         onlyRole(ALLOCATOR_SERVICE_ROLE)
     {
@@ -417,11 +435,11 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
             revert Paused();
         }
 
-        if (allocateToUnstakeRequestsManager + allocateToDeposits > unallocatedETH) {
+        if (allocateToUnstakeRequestsManager + allocateToDeposits + allocateToLiquidityBuffer > unallocatedETH) {
             revert NotEnoughUnallocatedETH();
         }
 
-        unallocatedETH -= allocateToUnstakeRequestsManager + allocateToDeposits;
+        unallocatedETH -= allocateToUnstakeRequestsManager + allocateToDeposits + allocateToLiquidityBuffer;
 
         if (allocateToDeposits > 0) {
             allocatedETHForDeposits += allocateToDeposits;
@@ -431,6 +449,11 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         if (allocateToUnstakeRequestsManager > 0) {
             emit AllocatedETHToUnstakeRequestsManager(allocateToUnstakeRequestsManager);
             unstakeRequestsManager.allocateETH{value: allocateToUnstakeRequestsManager}();
+        }
+
+        if (allocateToLiquidityBuffer > 0) {
+            emit AllocatedETHToLiquidityBuffer(allocateToLiquidityBuffer);
+            liquidityBuffer.depositAndAllocate{value: allocateToLiquidityBuffer}();
         }
     }
 
@@ -580,6 +603,8 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         /// oracle since it will be accounted for in the currentTotalValidatorBalance from that point onwards.
         total += totalDepositedInValidators - record.cumulativeProcessedDepositAmount;
         total += record.currentTotalValidatorBalance;
+        total += liquidityBuffer.getAvailableBalance();
+        total -= liquidityBuffer.cumulativeDrawdown();
         total += unstakeRequestsManager.balance();
         return total;
     }
@@ -611,10 +636,24 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         unallocatedETH += msg.value;
     }
 
+    /// @dev Adds the received funds to the unallocated balance.
+    function receiveReturnsFromLiquidityBuffer() external payable onlyLiquidityBuffer {
+        emit ReturnsReceivedFromLiquidityBuffer(msg.value);
+        unallocatedETH += msg.value;
+    }
+
     /// @notice Ensures that the caller is the returns aggregator.
     modifier onlyReturnsAggregator() {
         if (msg.sender != returnsAggregator) {
             revert NotReturnsAggregator();
+        }
+        _;
+    }
+
+    /// @notice Ensures that the caller is the returns aggregator.
+    modifier onlyLiquidityBuffer() {
+        if (msg.sender != address(liquidityBuffer)) {
+            revert NotLiquidityBuffer();
         }
         _;
     }

@@ -18,6 +18,12 @@ interface IStakingReturnsWrite {
 
     /// @notice Accepts funds sent by the unstake requests manager.
     function receiveFromUnstakeRequestsManager() external payable;
+
+    /// @notice Accepts funds sent by the liquidity buffer.
+    function receiveReturnsFromLiquidityBuffer() external payable;
+
+    /// @notice Top up staking contract.
+    function topUp() external payable;
 }
 
 interface IStaking is IStakingInitiationRead, IStakingReturnsWrite {}

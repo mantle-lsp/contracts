@@ -109,7 +109,7 @@ contract BasicTest is IntegrationTest {
         ds.staking.stake{value: 1024 ether}({minMETHAmount: 0 ether});
 
         vm.prank(allocator);
-        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: 1024 ether});
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: 1024 ether, allocateToLiquidityBuffer: 0});
 
         Staking.ValidatorParams[] memory params = new Staking.ValidatorParams[](
             10
@@ -214,7 +214,7 @@ contract PausingTest is IntegrationTest {
 
         vm.expectRevert(Staking.Paused.selector);
         vm.prank(allocator);
-        ds.staking.allocateETH(1, 1);
+        ds.staking.allocateETH(1, 1, 0);
     }
 
     function testInitiateValidatorsPaused() public {
@@ -256,7 +256,7 @@ contract WithStateTest is IntegrationTest {
         ds.staking.stake{value: 3200 ether}({minMETHAmount: 0 ether});
 
         vm.prank(allocator);
-        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: 3200 ether});
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: 3200 ether, allocateToLiquidityBuffer: 0});
 
         Staking.ValidatorParams[] memory params = new Staking.ValidatorParams[](
             10
@@ -306,7 +306,7 @@ contract WithStateTest is IntegrationTest {
         _reportNormalOperation({blockDelta: 1000, windowNumInitiated: 0, windowNumFullyWithdrawn: 0});
 
         vm.prank(allocator);
-        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 8 ether, allocateToDeposits: 12 ether});
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 8 ether, allocateToDeposits: 12 ether, allocateToLiquidityBuffer: 0});
 
         vm.prank(bob);
         ds.staking.claimUnstakeRequest(0);
@@ -375,7 +375,7 @@ contract ClaimReentrancyTest is WithStateTest {
         ds.quorumManager.receiveRecord(record);
 
         vm.prank(allocator);
-        ds.staking.allocateETH({allocateToUnstakeRequestsManager: ethAmount, allocateToDeposits: 0});
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: ethAmount, allocateToDeposits: 0, allocateToLiquidityBuffer: 0});
 
         exploiter.setTarget(address(this));
         exploiter.setCallData(abi.encodeCall(this.onReceive, (check)));
@@ -404,7 +404,7 @@ contract MaximumMETHSupplyStakeUnstakeTest is WithStateTest {
         vm.stopPrank();
 
         vm.prank(allocator);
-        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 1 ether, allocateToDeposits: 0});
+        ds.staking.allocateETH({allocateToUnstakeRequestsManager: 1 ether, allocateToDeposits: 0, allocateToLiquidityBuffer: 0});
 
         _reportNormalOperation({blockDelta: 1000, windowNumInitiated: 0, windowNumFullyWithdrawn: 0});
 

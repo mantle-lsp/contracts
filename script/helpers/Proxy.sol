@@ -20,6 +20,9 @@ import {ReturnsAggregator} from "../../src/ReturnsAggregator.sol";
 import {UnstakeRequestsManager} from "../../src/UnstakeRequestsManager.sol";
 import {Staking} from "../../src/Staking.sol";
 import {METH} from "../../src/METH.sol";
+import {LiquidityBuffer} from "../../src/liquidityBuffer/LiquidityBuffer.sol";
+
+import {IStaking} from "../../src/interfaces/IStaking.sol";
 
 // EmptyContract serves as a dud implementation for the proxy, which lets us point
 // to something and deploy the proxy before we deploy the implementation.
@@ -37,6 +40,7 @@ struct Deployments {
     ReturnsReceiver executionLayerReceiver;
     Staking staking;
     UnstakeRequestsManager unstakeRequestsManager;
+    LiquidityBuffer liquidityBuffer;
 }
 
 /// @notice Deployment paramaters for the protocol contract
@@ -105,7 +109,8 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
         staking: Staking(payable(newProxy(empty, proxyAdmin))),
         consensusLayerReceiver: ReturnsReceiver(payable(newProxy(empty, proxyAdmin))),
         executionLayerReceiver: ReturnsReceiver(payable(newProxy(empty, proxyAdmin))),
-        aggregator: ReturnsAggregator(payable(newProxy(empty, proxyAdmin)))
+        aggregator: ReturnsAggregator(payable(newProxy(empty, proxyAdmin))),
+        liquidityBuffer: LiquidityBuffer(payable(newProxy(empty, proxyAdmin)))
     });
 
     // Upgrade and iniitialize contracts
@@ -150,7 +155,8 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
             depositContract: IDepositContract(params.depositContract),
             oracle: ds.oracle,
             returnsAggregator: address(ds.aggregator),
-            unstakeRequestsManager: ds.unstakeRequestsManager
+            unstakeRequestsManager: ds.unstakeRequestsManager,
+            liquidityBuffer: ds.liquidityBuffer
         })
     );
 
@@ -206,6 +212,17 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
             mETH: ds.mETH,
             stakingContract: Staking(payable(address(ds.staking))),
             numberOfBlocksToFinalize: 128 // 4 epochs (in blocks) to finalize unstake requests.
+        })
+    );
+
+    ds.liquidityBuffer = initLiquidityBuffer(
+        proxyAdmin,
+        ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
+        LiquidityBuffer.Init({
+            admin: params.admin, 
+            staking: Staking(payable(address(ds.staking))),
+            pauser: ds.pauser,
+            feesReceiver: params.feesReceiver
         })
     );
 
@@ -343,6 +360,14 @@ function initMETH(TimelockController proxyAdmin, ITransparentUpgradeableProxy pr
     METH impl = new METH();
     upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(METH.initialize, init));
     return METH(address(proxy));
+}
+
+function initLiquidityBuffer(TimelockController proxyAdmin, ITransparentUpgradeableProxy proxy, LiquidityBuffer.Init memory init)
+    returns (LiquidityBuffer)
+{
+    LiquidityBuffer impl = new LiquidityBuffer();
+    upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(LiquidityBuffer.initialize, init));
+    return LiquidityBuffer(payable(address(proxy)));
 }
 
 function grantAndRenounce(AccessControlUpgradeable controllable, bytes32 role, address sender, address newAccount) {

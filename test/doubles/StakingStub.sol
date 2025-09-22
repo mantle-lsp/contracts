@@ -9,6 +9,8 @@ contract StakingStub is IStaking {
     uint256 public valueReceived;
     uint256 public valueReceivedRequestsManager;
     uint256 public initializationBlockNumber;
+    uint256 public valueReceivedLiquidityBuffer;
+    uint256 public valueReceivedTopUp;
 
     constructor() {
         initializationBlockNumber = block.number;
@@ -32,5 +34,13 @@ contract StakingStub is IStaking {
 
     function resetValueReceiver() public {
         valueReceived = 0;
+    }
+
+    function receiveReturnsFromLiquidityBuffer() external payable {
+        valueReceivedLiquidityBuffer += msg.value;
+    }
+
+    function topUp() external payable {
+        valueReceivedTopUp += msg.value;
     }
 }
