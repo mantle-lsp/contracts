@@ -6,11 +6,13 @@ import {Strings} from "openzeppelin/utils/Strings.sol";
 import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 import {ITransparentUpgradeableProxy, TransparentUpgradeableProxy} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {DataTypes} from "aave-v3/protocol/libraries/types/DataTypes.sol";
 
 import {PositionManager} from "../../src/liquidityBuffer/PositionManager.sol";
 import {IPositionManager} from "../../src/liquidityBuffer/interfaces/IPositionManager.sol";
 import {ILiquidityBuffer} from "../../src/liquidityBuffer/interfaces/ILiquidityBuffer.sol";
 import {IWETH} from "../../src/liquidityBuffer/interfaces/IWETH.sol";
+import {IPool} from "aave-v3/interfaces/IPool.sol";
 
 import {BaseTest} from "../BaseTest.sol";
 import {LiquidityBufferStub} from "../doubles/LiquidityBufferStub.sol";
@@ -221,10 +223,11 @@ contract PositionManagerTest is BaseTest {
         // Initialize PositionManager through proxy
         positionManager.initialize(
             PositionManager.Init({
-                weth: address(weth),
                 admin: admin,
-                pool: address(pool),
-                liquidityBuffer: address(liquidityBuffer)
+                manager: manager,
+                liquidityBuffer: ILiquidityBuffer(address(liquidityBuffer)),
+                weth: IWETH(address(weth)),
+                pool: IPool(address(pool))
             })
         );
     }
@@ -260,9 +263,8 @@ contract PositionManagerInitializationTest is PositionManagerTest {
     
     function testInitializationRoles() public {
         assertTrue(positionManager.hasRole(positionManager.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(positionManager.hasRole(positionManager.MANAGER_ROLE(), admin));
-        assertTrue(positionManager.hasRole(positionManager.EXECUTOR_ROLE(), executor));
         assertTrue(positionManager.hasRole(positionManager.MANAGER_ROLE(), manager));
+        assertTrue(positionManager.hasRole(positionManager.EXECUTOR_ROLE(), address(liquidityBuffer)));
         assertTrue(positionManager.hasRole(positionManager.EMERGENCY_ROLE(), emergency));
     }
     
@@ -275,10 +277,11 @@ contract PositionManagerInitializationTest is PositionManagerTest {
         vm.expectRevert();
         positionManager.initialize(
             PositionManager.Init({
-                weth: address(weth),
                 admin: admin,
-                pool: address(pool),
-                liquidityBuffer: address(liquidityBuffer)
+                manager: manager,
+                liquidityBuffer: ILiquidityBuffer(address(liquidityBuffer)),
+                weth: IWETH(address(weth)),
+                pool: IPool(address(pool))
             })
         );
     }
@@ -398,7 +401,7 @@ contract PositionManagerBorrowTest is PositionManagerTest {
         uint16 referralCode = 0;
         
         vm.expectEmit(true, true, true, true, address(positionManager));
-        emit Borrow(executor, borrowAmount, uint256(PositionManager.InterestRateMode.VARIABLE));
+        emit Borrow(executor, borrowAmount, uint256(DataTypes.InterestRateMode.VARIABLE));
         
         vm.deal(executor, 0); // Ensure executor has no ETH initially
         vm.prank(executor);
@@ -444,7 +447,7 @@ contract PositionManagerRepayTest is PositionManagerTest {
         uint256 repayAmount = 50 ether;
         
         vm.expectEmit(true, true, true, true, address(positionManager));
-        emit Repay(executor, repayAmount, uint256(PositionManager.InterestRateMode.VARIABLE));
+        emit Repay(executor, repayAmount, uint256(DataTypes.InterestRateMode.VARIABLE));
         
         vm.deal(executor, repayAmount);
         vm.prank(executor);
@@ -459,7 +462,7 @@ contract PositionManagerRepayTest is PositionManagerTest {
         uint256 currentDebt = 100 ether;
         
         vm.expectEmit(true, true, true, true, address(positionManager));
-        emit Repay(executor, currentDebt, uint256(PositionManager.InterestRateMode.VARIABLE));
+        emit Repay(executor, currentDebt, uint256(DataTypes.InterestRateMode.VARIABLE));
         
         vm.deal(executor, currentDebt);
         vm.prank(executor);

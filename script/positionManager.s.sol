@@ -6,6 +6,9 @@ import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {PositionManager} from "../src/liquidityBuffer/PositionManager.sol";
 import {LiquidityBuffer} from "../src/liquidityBuffer/LiquidityBuffer.sol";
+import {ILiquidityBuffer} from "../src/liquidityBuffer/interfaces/ILiquidityBuffer.sol";
+import {IWETH} from "../src/liquidityBuffer/interfaces/IWETH.sol";
+import {IPool} from "aave-v3/interfaces/IPool.sol";
 import {Pauser} from "../src/Pauser.sol";
 import {Staking} from "../src/Staking.sol";
 import {Deployments} from "./helpers/Proxy.sol";
@@ -61,10 +64,11 @@ contract PositionManagerDeploy is Base {
             TimelockController(payable(params.proxyAdmin)),
             ITransparentUpgradeableProxy(address(positionManagerProxy)),
             PositionManager.Init({
-                weth: params.weth,
-                admin: params.admin, 
-                pool: params.pool,
-                liquidityBuffer: params.liquidityBuffer
+                admin: params.admin,
+                manager: params.manager,
+                liquidityBuffer: ILiquidityBuffer(params.liquidityBuffer),
+                weth: IWETH(params.weth),
+                pool: IPool(params.pool)
             })
         );
         vm.stopBroadcast();

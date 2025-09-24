@@ -6,6 +6,9 @@ import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {PositionManager} from "../src/liquidityBuffer/PositionManager.sol";
 import {LiquidityBuffer} from "../src/liquidityBuffer/LiquidityBuffer.sol";
+import {ILiquidityBuffer} from "../src/liquidityBuffer/interfaces/ILiquidityBuffer.sol";
+import {IWETH} from "../src/liquidityBuffer/interfaces/IWETH.sol";
+import {IPool} from "aave-v3/interfaces/IPool.sol";
 import {Pauser} from "../src/Pauser.sol";
 import {Staking} from "../src/Staking.sol";
 import {Deployments} from "./helpers/Proxy.sol";
@@ -18,6 +21,10 @@ import {upgradeToAndCall} from "./helpers/Proxy.sol";
 
 struct DeploymentParams {
     address admin;
+    address liquidityManager;
+    address positionManager;
+    address interestTopUp;
+    address drawdownManager;
     address upgrader;
     address manager;
     address executor;
@@ -47,7 +54,11 @@ contract LiquidityBufferDeploy is Base {
             proxyAdmin: vm.envAddress("PROXY_ADMIN_ADDRESS"),
             stakingContract: vm.envAddress("STAKING_CONTRACT_ADDRESS"),
             pauserContract: vm.envAddress("PAUSER_CONTRACT_ADDRESS"),
-            feeReceiver: vm.envAddress("FEES_RECEIVER_ADDRESS")
+            feeReceiver: vm.envAddress("FEES_RECEIVER_ADDRESS"),
+            liquidityManager: vm.envAddress("LIQUIDITY_MANAGER_ROLE"),
+            positionManager: vm.envAddress("POSITION_MANAGER_ROLE"),
+            interestTopUp: vm.envAddress("INTEREST_TOPUP_ROLE"),
+            drawdownManager: vm.envAddress("DRAWDOWN_MANAGER_ROLE")
         });
     }
 
@@ -63,20 +74,25 @@ contract LiquidityBufferDeploy is Base {
             TimelockController(payable(params.proxyAdmin)),
             ITransparentUpgradeableProxy(address(liquidityBufferProxy)),
             LiquidityBuffer.Init({
-                admin: params.admin, 
+                admin: params.admin,
+                liquidityManager: params.liquidityManager,
+                positionManager: params.positionManager,
+                interestTopUp: params.interestTopUp,
+                drawdownManager: params.drawdownManager,
+                feesReceiver: payable(params.feeReceiver),
                 staking: Staking(payable(address(params.stakingContract))),
-                pauser: Pauser(payable(address(params.pauserContract))),
-                feesReceiver: payable(params.feeReceiver)
+                pauser: Pauser(payable(address(params.pauserContract)))
             })
         );
         PositionManager positionManagerInstance = initPositionManager(
             TimelockController(payable(params.proxyAdmin)),
             ITransparentUpgradeableProxy(address(positionManagerProxy)),
             PositionManager.Init({
-                weth: params.weth,
-                admin: params.admin, 
-                pool: params.pool,
-                liquidityBuffer: params.liquidityBuffer
+                admin: params.admin,
+                manager: params.manager,
+                liquidityBuffer: ILiquidityBuffer(params.liquidityBuffer),
+                weth: IWETH(params.weth),
+                pool: IPool(params.pool)
             })
         );
         vm.stopBroadcast();

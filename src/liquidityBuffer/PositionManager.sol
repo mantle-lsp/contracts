@@ -7,6 +7,7 @@ import {AccessControlEnumerableUpgradeable} from
 import {SafeERC20} from "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 import {IPool} from "aave-v3/interfaces/IPool.sol";
+import {DataTypes} from "aave-v3/protocol/libraries/types/DataTypes.sol";
 import {IPositionManager} from './interfaces/IPositionManager.sol';
 import {IWETH} from "./interfaces/IWETH.sol";
 import {ILiquidityBuffer} from "../liquidityBuffer/interfaces/ILiquidityBuffer.sol";
@@ -24,12 +25,6 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     bytes32 public constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
-    // Interest rate modes
-    enum InterestRateMode {
-        NONE,
-        STABLE,
-        VARIABLE
-    }
     
     // State variables
     IPool public pool;
@@ -38,10 +33,11 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
 
     /// @notice Configuration for contract initialization.
     struct Init {
-        address weth;
         address admin;
-        address pool;
-        address liquidityBuffer;
+        address manager;
+        ILiquidityBuffer liquidityBuffer;
+        IWETH weth;
+        IPool pool;
     }
 
     // Events
@@ -58,13 +54,14 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     function initialize(Init memory init) external initializer {
         __AccessControlEnumerable_init();
         
-        weth = IWETH(init.weth);
-        pool = IPool(init.pool);
-        liquidityBuffer = ILiquidityBuffer(init.liquidityBuffer);
+        weth = init.weth;
+        pool = init.pool;
+        liquidityBuffer = init.liquidityBuffer;
         
         // Set up roles
         _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
-        _grantRole(MANAGER_ROLE, init.admin);
+        _grantRole(MANAGER_ROLE, init.manager);
+        _grantRole(EXECUTOR_ROLE, address(init.liquidityBuffer));
         
         // Approve pool to spend WETH
         weth.approve(address(pool), type(uint256).max);
@@ -136,7 +133,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         pool.repay(
             address(weth),
             repayAmount,
-            uint256(InterestRateMode.VARIABLE),
+            uint256(DataTypes.InterestRateMode.VARIABLE),
             address(this)
         );
         
@@ -145,7 +142,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
             _safeTransferETH(msg.sender, msg.value - repayAmount);
         }
         
-        emit Repay(msg.sender, repayAmount, uint256(InterestRateMode.VARIABLE));
+        emit Repay(msg.sender, repayAmount, uint256(DataTypes.InterestRateMode.VARIABLE));
     }
 
     function borrow(uint256 amount, uint16 referralCode) external override onlyRole(EXECUTOR_ROLE) {
@@ -155,7 +152,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         pool.borrow(
             address(weth),
             amount,
-            uint256(InterestRateMode.VARIABLE),
+            uint256(DataTypes.InterestRateMode.VARIABLE),
             referralCode,
             address(this)
         );
@@ -166,7 +163,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         // Transfer ETH to caller safely
         _safeTransferETH(msg.sender, amount);
         
-        emit Borrow(msg.sender, amount, uint256(InterestRateMode.VARIABLE));
+        emit Borrow(msg.sender, amount, uint256(DataTypes.InterestRateMode.VARIABLE));
     }
 
     function getUnderlyingBalance() external view returns (uint256) {

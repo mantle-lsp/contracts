@@ -80,22 +80,18 @@ contract LiquidityBufferTest is BaseTest, LiquidityBufferEvents {
         // Initialize liquidity buffer
         LiquidityBuffer.Init memory init = LiquidityBuffer.Init({
             admin: admin,
+            liquidityManager: liquidityManager,
+            positionManager: positionManagerRole,
+            interestTopUp: interestTopUpRole,
+            drawdownManager: drawdownManagerRole,
+            feesReceiver: payable(feesReceiver),
             staking: staking,
-            pauser: pauser,
-            feesReceiver: payable(feesReceiver)
+            pauser: pauser
         });
         
         upgradeToAndCall(proxyAdmin, liquidityBufferProxy, address(_liquidityBuffer), abi.encodeCall(LiquidityBuffer.initialize, init));
         tLiquidityBuffer = TestableLiquidityBuffer(payable(address(liquidityBufferProxy)));
         liquidityBuffer = tLiquidityBuffer;
-
-        // Grant roles
-        vm.startPrank(admin);
-        liquidityBuffer.grantRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), liquidityManager);
-        liquidityBuffer.grantRole(liquidityBuffer.POSITION_MANAGER_ROLE(), positionManagerRole);
-        liquidityBuffer.grantRole(liquidityBuffer.INTEREST_TOPUP_ROLE(), interestTopUpRole);
-        liquidityBuffer.grantRole(liquidityBuffer.DRAWDOWN_MANAGER_ROLE(), drawdownManagerRole);
-        vm.stopPrank();
     }
 }
 
@@ -119,8 +115,10 @@ contract LiquidityBufferInitializationTest is LiquidityBufferTest {
 
     function testInitializationRoles() public {
         assertTrue(liquidityBuffer.hasRole(liquidityBuffer.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), admin));
-        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.INTEREST_TOPUP_ROLE(), admin));
+        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.POSITION_MANAGER_ROLE(), positionManagerRole));
+        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), liquidityManager));
+        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.INTEREST_TOPUP_ROLE(), interestTopUpRole));
+        assertTrue(liquidityBuffer.hasRole(liquidityBuffer.DRAWDOWN_MANAGER_ROLE(), drawdownManagerRole));
     }
 }
 
@@ -128,27 +126,25 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
     function testAddPositionManager() public {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
         uint256 allocationCap = 1000 ether;
-        uint32 withdrawalDelaySeconds = 86400; // 1 day
 
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ProtocolConfigChanged(
             liquidityBuffer.addPositionManager.selector,
-            "addPositionManager(address,uint256,uint32)",
-            abi.encode(managerAddress, allocationCap, withdrawalDelaySeconds)
+            "addPositionManager(address,uint256)",
+            abi.encode(managerAddress, allocationCap)
         );
 
         vm.prank(positionManagerRole);
-        uint256 managerId = liquidityBuffer.addPositionManager(managerAddress, allocationCap, withdrawalDelaySeconds);
+        uint256 managerId = liquidityBuffer.addPositionManager(managerAddress, allocationCap);
 
         assertEq(managerId, 0);
         assertEq(liquidityBuffer.positionManagerCount(), 1);
         assertEq(liquidityBuffer.totalAllocationCapacity(), allocationCap);
 
-        (address configManagerAddress, uint256 configAllocationCap, bool configIsActive, uint32 configWithdrawalDelaySeconds) = liquidityBuffer.positionManagerConfigs(0);
+        (address configManagerAddress, uint256 configAllocationCap, bool configIsActive) = liquidityBuffer.positionManagerConfigs(0);
         assertEq(configManagerAddress, managerAddress);
         assertEq(configAllocationCap, allocationCap);
         assertTrue(configIsActive);
-        assertEq(configWithdrawalDelaySeconds, withdrawalDelaySeconds);
     }
 
     function testAddPositionManagerMultiple() public {
@@ -158,8 +154,8 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         uint256 allocationCap2 = 2000 ether;
 
         vm.startPrank(positionManagerRole);
-        uint256 managerId1 = liquidityBuffer.addPositionManager(manager1, allocationCap1, 86400);
-        uint256 managerId2 = liquidityBuffer.addPositionManager(manager2, allocationCap2, 172800);
+        uint256 managerId1 = liquidityBuffer.addPositionManager(manager1, allocationCap1);
+        uint256 managerId2 = liquidityBuffer.addPositionManager(manager2, allocationCap2);
         vm.stopPrank();
 
         assertEq(managerId1, 0);
@@ -171,9 +167,10 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
     function testAddPositionManagerUnauthorized(address vandal) public {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
         vm.assume(vandal != positionManagerRole);
+        vm.assume(vandal != address(proxyAdmin));
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.POSITION_MANAGER_ROLE()));
         vm.startPrank(vandal);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 0);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         vm.stopPrank();
     }
 
@@ -183,7 +180,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         uint256 newAllocationCap = 2000 ether;
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, initialAllocationCap, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, initialAllocationCap);
         
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ProtocolConfigChanged(
@@ -197,7 +194,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
 
         assertEq(liquidityBuffer.totalAllocationCapacity(), newAllocationCap);
         
-        (, uint256 allocationCap2, bool isActive2, ) = liquidityBuffer.positionManagerConfigs(0);
+        (, uint256 allocationCap2, bool isActive2) = liquidityBuffer.positionManagerConfigs(0);
         assertEq(allocationCap2, newAllocationCap);
         assertFalse(isActive2);
     }
@@ -212,7 +209,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ProtocolConfigChanged(
@@ -224,7 +221,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         liquidityBuffer.togglePositionManagerStatus(0);
         vm.stopPrank();
 
-        (address managerAddress3, uint256 allocationCap3, bool isActive3, uint32 withdrawalDelaySeconds3) = liquidityBuffer.positionManagerConfigs(0);
+        (address managerAddress3, uint256 allocationCap3, bool isActive3) = liquidityBuffer.positionManagerConfigs(0);
         assertFalse(isActive3);
     }
 
@@ -232,7 +229,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ProtocolConfigChanged(
@@ -257,7 +254,7 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         liquidityBuffer.updatePositionManager(0, 1000 ether, false); // Set inactive
         
         vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ManagerInactive.selector);
@@ -287,13 +284,14 @@ contract LiquidityBufferFeeManagementTest is LiquidityBufferTest {
         uint16 invalidBasisPoints = 10001; // > 100%
 
         vm.prank(positionManagerRole);
-        vm.expectRevert(LiquidityBuffer.InvalidConfiguration.selector);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__InvalidConfiguration.selector);
         liquidityBuffer.setFeeBasisPoints(invalidBasisPoints);
     }
 
     function testSetFeeBasisPointsUnauthorized(address vandal) public {
         vm.assume(vandal != positionManagerRole);
         vm.assume(vandal != address(proxyAdmin));
+        vm.assume(vandal != address(admin));
 
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.POSITION_MANAGER_ROLE()));
         vm.startPrank(vandal);
@@ -319,7 +317,7 @@ contract LiquidityBufferFeeManagementTest is LiquidityBufferTest {
 
     function testSetFeesReceiverZeroAddress() public {
         vm.prank(positionManagerRole);
-        vm.expectRevert(LiquidityBuffer.ZeroAddress.selector);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ZeroAddress.selector);
         liquidityBuffer.setFeesReceiver(payable(address(0)));
     }
 }
@@ -395,7 +393,7 @@ contract LiquidityBufferViewFunctionsTest is LiquidityBufferTest {
         // Add a position manager
         PositionManagerStub manager = new PositionManagerStub(managerBalance, address(liquidityBuffer));
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(address(manager), 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(address(manager), 1000 ether);
         vm.stopPrank();
 
         assertEq(liquidityBuffer.getControlledBalance(), contractBalance + managerBalance);
@@ -407,7 +405,7 @@ contract LiquidityBufferViewFunctionsTest is LiquidityBufferTest {
 
         PositionManagerStub manager = new PositionManagerStub(currentBalance, address(liquidityBuffer));
         vm.startPrank(positionManagerRole);
-        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether, 86400);
+        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether);
         vm.stopPrank();
 
         // Set allocated balance for this manager
@@ -426,7 +424,7 @@ contract LiquidityBufferViewFunctionsTest is LiquidityBufferTest {
 
         PositionManagerStub manager = new PositionManagerStub(currentBalance, address(liquidityBuffer));
         vm.startPrank(positionManagerRole);
-        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether, 86400);
+        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether);
         vm.stopPrank();
 
         // Set allocated balance for this manager
@@ -446,7 +444,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         liquidityBuffer.setDefaultManagerId(0);
         vm.stopPrank();
 
@@ -470,22 +468,22 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
     //     pauser.setIsLiquidityBufferPaused(true);
 
     //     vm.prank(liquidityManager);
-    //     vm.expectRevert(LiquidityBuffer.Paused.selector);
+    //     vm.expectRevert(LiquidityBuffer.LiquidityBuffer__Paused.selector);
     //     liquidityBuffer.depositAndAllocate{value: 100 ether}();
     // }
 
-    function testDepositAndAllocateUnauthorized(address vandal) public {
+    function testDepositAndAllocateUnauthorized(address vandal, uint256 amount) public {
         vm.assume(vandal != liquidityManager);
         vm.assume(vandal != address(proxyAdmin));
         vm.assume(vandal != address(admin));
-        uint256 depositAmount = 100 ether;
+        vm.assume(vandal != address(0));
 
         // Fund the vandal with ETH to make the call
-        vm.deal(vandal, depositAmount);
+        vm.deal(vandal, amount);
 
-        vm.expectRevert(missingRoleError(vandal, liquidityBuffer.LIQUIDITY_MANAGER_ROLE()));
         vm.startPrank(vandal);
-        liquidityBuffer.depositAndAllocate{value: depositAmount}();
+        vm.expectRevert(missingRoleError(vandal, liquidityBuffer.LIQUIDITY_MANAGER_ROLE()));
+        liquidityBuffer.depositAndAllocate{value: amount}();
         vm.stopPrank();
     }
 
@@ -504,7 +502,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 500 ether, 86400); // Cap is 500 ether
+        liquidityBuffer.addPositionManager(managerAddress, 500 ether); // Cap is 500 ether
         liquidityBuffer.setDefaultManagerId(0);
         vm.stopPrank();
 
@@ -532,7 +530,7 @@ contract LiquidityBufferAllocateETHTest is LiquidityBufferTest {
         _depositIntoLiquidityBuffer(allocateAmount);
 
         vm.prank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
 
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ETHAllocatedToManager(0, allocateAmount);
@@ -553,7 +551,7 @@ contract LiquidityBufferAllocateETHTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         vm.stopPrank();
 
         vm.prank(liquidityManager);
@@ -568,7 +566,7 @@ contract LiquidityBufferAllocateETHTest is LiquidityBufferTest {
         _depositIntoLiquidityBuffer(allocateAmount);
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         liquidityBuffer.updatePositionManager(0, 1000 ether, false); // Set inactive
         vm.stopPrank();
 
@@ -587,7 +585,7 @@ contract LiquidityBufferWithdrawTest is LiquidityBufferTest {
         vm.deal(managerAddress, withdrawAmount);
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         vm.stopPrank();
 
         // Set allocated balance
@@ -617,7 +615,7 @@ contract LiquidityBufferWithdrawTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(withdrawAmount, address(0)));
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         vm.stopPrank();
 
         // Set allocated balance less than withdraw amount
@@ -640,7 +638,7 @@ contract LiquidityBufferWithdrawTest is LiquidityBufferTest {
         vm.deal(managerAddress, withdrawAmount);
 
         vm.startPrank(positionManagerRole);
-        liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 86400);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
         vm.stopPrank();
 
         // Set allocated balance
@@ -673,7 +671,7 @@ contract LiquidityBufferInterestTest is LiquidityBufferTest {
     function _addPositionManager() internal returns (uint256, PositionManagerStub) {
         PositionManagerStub manager = new PositionManagerStub(0, address(liquidityBuffer));
         vm.prank(positionManagerRole);
-        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether, 86400);
+        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether);
         return (managerId, manager);
     }
     function _depositAndAllocateIntoLiquidityBuffer(uint256 amount) internal {
@@ -810,7 +808,7 @@ contract LiquidityBufferReceiveETHTest is LiquidityBufferTest {
 
         vm.deal(vandal, amount);
         vm.startPrank(vandal);
-        vm.expectRevert(LiquidityBuffer.NotStakingContract.selector);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__NotStakingContract.selector);
         liquidityBuffer.receiveETHFromStaking{value: amount}();
         vm.stopPrank();
     }
@@ -856,15 +854,14 @@ contract LiquidityBufferReceiveFallbackTest is LiquidityBufferTest {
 contract LiquidityBufferFuzzTest is LiquidityBufferTest {
     function testFuzzAddPositionManager(
         address managerAddress,
-        uint256 allocationCap,
-        uint32 withdrawalDelaySeconds
+        uint256 allocationCap
     ) public {
         vm.assume(managerAddress != address(0));
         vm.assume(allocationCap > 0);
         vm.assume(allocationCap <= type(uint128).max); // Prevent overflow
 
         vm.prank(positionManagerRole);
-        uint256 managerId = liquidityBuffer.addPositionManager(managerAddress, allocationCap, withdrawalDelaySeconds);
+        uint256 managerId = liquidityBuffer.addPositionManager(managerAddress, allocationCap);
 
         assertEq(managerId, 0);
         assertEq(liquidityBuffer.positionManagerCount(), 1);

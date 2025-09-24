@@ -219,10 +219,14 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
         proxyAdmin,
         ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
         LiquidityBuffer.Init({
-            admin: params.admin, 
+            admin: params.admin,
+            liquidityManager: params.admin,
+            positionManager: params.admin,
+            interestTopUp: params.admin,
+            drawdownManager: params.admin,
+            feesReceiver: params.feesReceiver,
             staking: Staking(payable(address(ds.staking))),
-            pauser: ds.pauser,
-            feesReceiver: params.feesReceiver
+            pauser: ds.pauser
         })
     );
 

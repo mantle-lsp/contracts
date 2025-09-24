@@ -94,9 +94,13 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     struct Init {
         address admin;
+        address liquidityManager;
+        address positionManager;
+        address interestTopUp;
+        address drawdownManager;
+        address payable feesReceiver;
         IStakingReturnsWrite staking;
         IPauserRead pauser;
-        address payable feesReceiver;
     }
 
     // ========================================= ERRORS =========================================
@@ -107,11 +111,11 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     error LiquidityBuffer__InsufficientBalance();
     error LiquidityBuffer__InsufficientAllocation();
     error LiquidityBuffer__DoesNotReceiveETH();
-    error Paused();
-    error InvalidConfiguration();
-    error ZeroAddress();
-    error NotStakingContract();
-    error NotPositionManagerContract();
+    error LiquidityBuffer__Paused();
+    error LiquidityBuffer__InvalidConfiguration();
+    error LiquidityBuffer__ZeroAddress();
+    error LiquidityBuffer__NotStakingContract();
+    error LiquidityBuffer__NotPositionManagerContract();
     // ========================================= INITIALIZATION =========================================
 
     constructor() {
@@ -123,9 +127,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         __AccessControlEnumerable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
-        _grantRole(LIQUIDITY_MANAGER_ROLE, init.admin);
-        _grantRole(POSITION_MANAGER_ROLE, init.admin);
-        _grantRole(INTEREST_TOPUP_ROLE, init.admin);
+        _grantRole(LIQUIDITY_MANAGER_ROLE, init.liquidityManager);
+        _grantRole(POSITION_MANAGER_ROLE, init.positionManager);
+        _grantRole(INTEREST_TOPUP_ROLE, init.interestTopUp);
+        _grantRole(DRAWDOWN_MANAGER_ROLE, init.drawdownManager);
+        
+        _grantRole(LIQUIDITY_MANAGER_ROLE, address(stakingContract));
 
         stakingContract = init.staking;
         pauser = init.pauser;
@@ -180,8 +187,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function addPositionManager(
         address managerAddress,
-        uint256 allocationCap,
-        uint32 withdrawalDelaySeconds
+        uint256 allocationCap
     ) external onlyRole(POSITION_MANAGER_ROLE) returns (uint256 managerId) {
         managerId = positionManagerCount;
         positionManagerCount++;
@@ -189,8 +195,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         positionManagerConfigs[managerId] = PositionManagerConfig({
             managerAddress: managerAddress,
             allocationCap: allocationCap,
-            isActive: true,
-            withdrawalDelaySeconds: withdrawalDelaySeconds
+            isActive: true
         });
         positionAccountants[managerId] = PositionAccountant({
             allocatedBalance: 0,
@@ -200,8 +205,8 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         totalAllocationCapacity += allocationCap;
         emit ProtocolConfigChanged(
             this.addPositionManager.selector,
-            "addPositionManager(address,uint256,uint32)",
-            abi.encode(managerAddress, allocationCap, withdrawalDelaySeconds)
+            "addPositionManager(address,uint256)",
+            abi.encode(managerAddress, allocationCap)
         );
     }
 
@@ -276,7 +281,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     /// @param newBasisPoints The new fees basis points.
     function setFeeBasisPoints(uint16 newBasisPoints) external onlyRole(POSITION_MANAGER_ROLE) {
         if (newBasisPoints > _BASIS_POINTS_DENOMINATOR) {
-            revert InvalidConfiguration();
+            revert LiquidityBuffer__InvalidConfiguration();
         }
 
         feesBasisPoints = newBasisPoints;
@@ -360,7 +365,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function _topUpInterestToStakingAndCollectFees(uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
-            revert Paused();
+            revert LiquidityBuffer__Paused();
         }
         uint256 fees = Math.mulDiv(feesBasisPoints, amount, _BASIS_POINTS_DENOMINATOR);
         uint256 topUpAmount = amount - fees;
@@ -377,7 +382,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     
     function _claimInterestFromManager(uint256 managerId) internal returns (uint256) {
         if (pauser.isLiquidityBufferPaused()) {
-            revert Paused();
+            revert LiquidityBuffer__Paused();
         }
         // Get interest amount
         uint256 interestAmount = getInterestAmount(managerId);
@@ -402,7 +407,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function _withdrawETHFromManager(uint256 managerId, uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
-            revert Paused();
+            revert LiquidityBuffer__Paused();
         }
         if (managerId >= positionManagerCount) revert LiquidityBuffer__ManagerNotFound();
         PositionManagerConfig memory config = positionManagerConfigs[managerId];
@@ -425,12 +430,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function _returnETHToStaking(uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
-            revert Paused();
+            revert LiquidityBuffer__Paused();
         }
         
         // Validate staking contract is set and not zero address
         if (address(stakingContract) == address(0)) {
-            revert ZeroAddress();
+            revert LiquidityBuffer__ZeroAddress();
         }
         
         // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
@@ -444,7 +449,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function _allocateETHToManager(uint256 managerId, uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
-            revert Paused();
+            revert LiquidityBuffer__Paused();
         }
         
         if (managerId >= positionManagerCount) revert LiquidityBuffer__ManagerNotFound();
@@ -479,7 +484,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     /// @param addr The address to check.
     modifier notZeroAddress(address addr) {
         if (addr == address(0)) {
-            revert ZeroAddress();
+            revert LiquidityBuffer__ZeroAddress();
         }
         _;
     }
@@ -487,7 +492,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     /// @dev Validates that the caller is the staking contract.
     modifier onlyStakingContract() {
         if (msg.sender != address(stakingContract)) {
-            revert NotStakingContract();
+            revert LiquidityBuffer__NotStakingContract();
         }
         _;
     }
@@ -506,7 +511,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         }
         
         if (!isValidManager) {
-            revert NotPositionManagerContract();
+            revert LiquidityBuffer__NotPositionManagerContract();
         }
         _;
     }
