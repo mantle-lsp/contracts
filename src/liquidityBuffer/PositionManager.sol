@@ -36,6 +36,14 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     IWETH public weth;
     ILiquidityBuffer public liquidityBuffer;
 
+    /// @notice Configuration for contract initialization.
+    struct Init {
+        address weth;
+        address admin;
+        address pool;
+        address liquidityBuffer;
+    }
+
     // Events
     event Deposit(address indexed caller, uint amount, uint aTokenAmount);
     event Withdraw(address indexed caller, uint amount);
@@ -47,21 +55,16 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         _disableInitializers();
     }
     
-    function initialize(
-        address _weth,
-        address _admin,
-        address _pool,
-        address _liquidityBuffer
-    ) external initializer {
+    function initialize(Init memory init) external initializer {
         __AccessControlEnumerable_init();
         
-        weth = IWETH(_weth);
-        pool = IPool(_pool);
-        liquidityBuffer = ILiquidityBuffer(_liquidityBuffer);
+        weth = IWETH(init.weth);
+        pool = IPool(init.pool);
+        liquidityBuffer = ILiquidityBuffer(init.liquidityBuffer);
         
         // Set up roles
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        _grantRole(MANAGER_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
+        _grantRole(MANAGER_ROLE, init.admin);
         
         // Approve pool to spend WETH
         weth.approve(address(pool), type(uint256).max);

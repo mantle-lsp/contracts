@@ -5,133 +5,96 @@ pragma solidity ^0.8.20;
 import {Base} from "./base.s.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {PositionManager} from "../src/liquidityBuffer/PositionManager.sol";
+import {LiquidityBuffer} from "../src/liquidityBuffer/LiquidityBuffer.sol";
+import {Pauser} from "../src/Pauser.sol";
+import {Staking} from "../src/Staking.sol";
 import {Deployments} from "./helpers/Proxy.sol";
 import {
     ITransparentUpgradeableProxy,
     TransparentUpgradeableProxy
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TimelockController} from "openzeppelin/governance/TimelockController.sol";
+import {upgradeToAndCall} from "./helpers/Proxy.sol";
+
+struct DeploymentParams {
+    address admin;
+    address upgrader;
+    address manager;
+    address executor;
+    address emergency;
+    address weth;
+    address pool;
+    address liquidityBuffer;
+    address proxyAdmin;
+    address pauserContract;
+    address stakingContract;
+    address feeReceiver;
+}
+
+contract EmptyContract {}
 
 contract PositionManagerDeploy is Base {
-    function _readDeploymentParamsFromEnv() internal view returns (
-        address admin,
-        address upgrader,
-        address manager,
-        address executor,
-        address emergency,
-        address weth,
-        address pool
-    ) {
-        return (
-            vm.envAddress("ADMIN_ADDRESS"),
-            vm.envAddress("UPGRADER_ADDRESS"),
-            vm.envAddress("MANAGER_ADDRESS"),
-            vm.envAddress("EXECUTOR_ADDRESS"),
-            vm.envAddress("EMERGENCY_ADDRESS"),
-            vm.envAddress("WETH_ADDRESS"),
-            vm.envAddress("AAVE_POOL_ADDRESS")
-        );
+    function _readDeploymentParamsFromEnv() internal view returns (DeploymentParams memory) {
+        return DeploymentParams({
+            admin: vm.envAddress("ADMIN_ADDRESS"),
+            upgrader: vm.envAddress("UPGRADER_ADDRESS"),
+            manager: vm.envAddress("MANAGER_ADDRESS"),
+            executor: vm.envAddress("EXECUTOR_ADDRESS"),
+            emergency: vm.envAddress("EMERGENCY_ADDRESS"),
+            weth: vm.envAddress("WETH_ADDRESS"),
+            pool: vm.envAddress("POOL_CONTRACT_ADDRESS"),
+            liquidityBuffer: vm.envAddress("LIQUIDITY_BUFFER_CONTRACT_ADDRESS"),
+            proxyAdmin: vm.envAddress("PROXY_ADMIN_ADDRESS"),
+            stakingContract: vm.envAddress("STAKING_CONTRACT_ADDRESS"),
+            pauserContract: vm.envAddress("PAUSER_CONTRACT_ADDRESS"),
+            feeReceiver: vm.envAddress("FEES_RECEIVER_ADDRESS")
+        });
     }
 
     function deploy() public {
-        (
-            address admin,
-            address upgrader,
-            address manager,
-            address executor,
-            address emergency,
-            address weth,
-            address pool
-        ) = _readDeploymentParamsFromEnv();
-
-        // Read existing deployments to get liquidity buffer contract
-        Deployments memory existingDeps = readDeployments();
+        DeploymentParams memory params = _readDeploymentParamsFromEnv();
 
         vm.startBroadcast();
-        
-        // Deploy proxy admin (TimelockController)
-        address[] memory controllers = new address[](2);
-        controllers[0] = upgrader;
-        controllers[1] = msg.sender;
-        TimelockController proxyAdmin = new TimelockController({
-            minDelay: 0,
-            admin: msg.sender,
-            proposers: controllers,
-            executors: controllers
-        });
-
-        // Deploy PositionManager implementation
-        PositionManager positionManagerImpl = new PositionManager();
-
-        // Deploy PositionManager proxy
-        TransparentUpgradeableProxy positionManagerProxy = new TransparentUpgradeableProxy(
-            address(positionManagerImpl),
-            address(proxyAdmin),
-            ""
+        EmptyContract empty = new EmptyContract();
+        PositionManager positionManagerProxy = PositionManager(payable(newProxy(empty, params.proxyAdmin)));
+        PositionManager positionManagerInstance = initPositionManager(
+            TimelockController(payable(params.proxyAdmin)),
+            ITransparentUpgradeableProxy(address(positionManagerProxy)),
+            PositionManager.Init({
+                weth: params.weth,
+                admin: params.admin, 
+                pool: params.pool,
+                liquidityBuffer: params.liquidityBuffer
+            })
         );
+        vm.stopBroadcast();
+        console.log("PositionManager Deployment:");
+        console.log("PositionManager: %s", address(positionManagerInstance));
+    }
 
-        PositionManager positionManager = PositionManager(payable(address(positionManagerProxy)));
-
-        // Initialize PositionManager
-        positionManager.initialize(
-            weth,
-            admin,
-            pool,
-            address(existingDeps.liquidityBuffer)
-        );
-
+    function _setupRoles(
+        PositionManager positionManager,
+        address admin,
+        address manager,
+        address executor,
+        address emergency
+    ) internal {
         // Grant roles to the appropriate addresses
         positionManager.grantRole(positionManager.DEFAULT_ADMIN_ROLE(), admin);
         positionManager.grantRole(positionManager.MANAGER_ROLE(), manager);
         positionManager.grantRole(positionManager.EXECUTOR_ROLE(), executor);
         positionManager.grantRole(positionManager.EMERGENCY_ROLE(), emergency);
-
-        // Renounce deployer roles if deployer is not the admin
-        if (msg.sender != admin) {
-            positionManager.renounceRole(positionManager.DEFAULT_ADMIN_ROLE(), msg.sender);
-            positionManager.renounceRole(positionManager.MANAGER_ROLE(), msg.sender);
-            positionManager.renounceRole(positionManager.EXECUTOR_ROLE(), msg.sender);
-            positionManager.renounceRole(positionManager.EMERGENCY_ROLE(), msg.sender);
-        }
-
-        // Renounce deployer roles from proxy admin if deployer is not the admin
-        if (msg.sender != admin) {
-            proxyAdmin.renounceRole(proxyAdmin.TIMELOCK_ADMIN_ROLE(), msg.sender);
-        }
-
-        vm.stopBroadcast();
-
-        // Log deployment information
-        logDeployment(proxyAdmin, positionManager);
-        
-        // Write deployment to file
-        writePositionManagerDeployment(proxyAdmin, positionManager);
     }
+}
 
-    function logDeployment(TimelockController proxyAdmin, PositionManager positionManager) public view {
-        console.log("PositionManager Deployment:");
-        console.log("ProxyAdmin (TimelockController): %s", address(proxyAdmin));
-        console.log("PositionManager Proxy: %s", address(positionManager));
-        console.log("PositionManager Implementation: %s", _getImplementation(address(positionManager)));
-    }
+function newProxy(EmptyContract empty, address admin) returns (TransparentUpgradeableProxy) {
+    return new TransparentUpgradeableProxy(address(empty), admin, "");
+}
 
-    function writePositionManagerDeployment(TimelockController proxyAdmin, PositionManager positionManager) public {
-        string memory deploymentData = string(abi.encodePacked(
-            "POSITION_MANAGER_PROXY_ADMIN=", vm.toString(address(proxyAdmin)), "\n",
-            "POSITION_MANAGER_PROXY=", vm.toString(address(positionManager)), "\n",
-            "POSITION_MANAGER_IMPLEMENTATION=", vm.toString(_getImplementation(address(positionManager))), "\n"
-        ));
-        
-        string memory deploymentFile = string.concat(_deploymentsFile(), "/position_manager.env");
-        vm.writeFile(deploymentFile, deploymentData);
-    }
-
-    function _getImplementation(address /* proxy */) internal view returns (address) {
-        bytes32 slot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-        bytes32 impl;
-        assembly {
-            impl := sload(slot)
-        }
-        return address(uint160(uint256(impl)));
-    }
+function initPositionManager(TimelockController proxyAdmin, ITransparentUpgradeableProxy proxy, PositionManager.Init memory init)
+returns (PositionManager)
+{
+    PositionManager impl = new PositionManager();
+    upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(PositionManager.initialize, init));
+    return PositionManager(payable(address(proxy)));
 }

@@ -124,6 +124,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
         _grantRole(DEFAULT_ADMIN_ROLE, init.admin);
         _grantRole(LIQUIDITY_MANAGER_ROLE, init.admin);
+        _grantRole(POSITION_MANAGER_ROLE, init.admin);
         _grantRole(INTEREST_TOPUP_ROLE, init.admin);
 
         stakingContract = init.staking;
@@ -161,6 +162,8 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         uint256 totalBalance = address(this).balance;
         
         // Loop through all position manager configs and get their balances
+        // Note: This function makes external calls in a loop which can be gas-expensive
+        // Consider caching balances or using a different approach for production
         for (uint256 i = 0; i < positionManagerCount; i++) {
             PositionManagerConfig storage config = positionManagerConfigs[i];
             if (config.isActive) {
@@ -381,15 +384,18 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         
         if (interestAmount > 0) {
             PositionManagerConfig memory config = positionManagerConfigs[managerId];
-            // Withdraw interest from position manager
-            IPositionManager manager = IPositionManager(config.managerAddress);
-            manager.withdraw(interestAmount);
             
-            // Update accounting
+            // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
             positionAccountants[managerId].interestClaimedFromManager += interestAmount;
             totalInterestClaimed += interestAmount;
+            emit InterestClaimed(managerId, interestAmount);
+            
+            // Withdraw interest from position manager AFTER state updates
+            IPositionManager manager = IPositionManager(config.managerAddress);
+            manager.withdraw(interestAmount);
+        } else {
+            emit InterestClaimed(managerId, interestAmount);
         }
-        emit InterestClaimed(managerId, interestAmount);
         
         return interestAmount;
     }
@@ -407,23 +413,33 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
             revert LiquidityBuffer__InsufficientAllocation();
         }
 
-        // Call position manager to withdraw
-        IPositionManager manager = IPositionManager(config.managerAddress);
-        manager.withdraw(amount);
-
-        // Update accounting
+        // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         accounting.allocatedBalance -= amount;
         totalAllocatedBalance -= amount;
         emit ETHWithdrawnFromManager(managerId, amount);
+
+        // Call position manager to withdraw AFTER state updates
+        IPositionManager manager = IPositionManager(config.managerAddress);
+        manager.withdraw(amount);
     }
 
     function _returnETHToStaking(uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
             revert Paused();
         }
-        stakingContract.receiveReturnsFromLiquidityBuffer{value: amount}();
+        
+        // Validate staking contract is set and not zero address
+        if (address(stakingContract) == address(0)) {
+            revert ZeroAddress();
+        }
+        
+        // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         totalFundsReturned += amount;
         emit ETHReturnedToStaking(amount);
+        
+        // Send ETH to trusted staking contract AFTER state updates
+        // Note: stakingContract is a trusted contract set during initialization
+        stakingContract.receiveReturnsFromLiquidityBuffer{value: amount}();
     }
 
     function _allocateETHToManager(uint256 managerId, uint256 amount) internal {
@@ -444,13 +460,14 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
             revert LiquidityBuffer__ExceedsAllocationCap();
         }
 
-        // deposit to position manager and update accounting
-        IPositionManager manager = IPositionManager(config.managerAddress);
-        manager.deposit{value: amount}(0);
-
+        // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         accounting.allocatedBalance += amount;
         totalAllocatedBalance += amount;
         emit ETHAllocatedToManager(managerId, amount);
+
+        // deposit to position manager AFTER state updates
+        IPositionManager manager = IPositionManager(config.managerAddress);
+        manager.deposit{value: amount}(0);
     }
 
     function _receiveETHFromStaking(uint256 amount) internal {

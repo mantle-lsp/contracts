@@ -220,10 +220,12 @@ contract PositionManagerTest is BaseTest {
         
         // Initialize PositionManager through proxy
         positionManager.initialize(
-            address(weth),
-            admin,
-            address(pool),
-            address(liquidityBuffer)
+            PositionManager.Init({
+                weth: address(weth),
+                admin: admin,
+                pool: address(pool),
+                liquidityBuffer: address(liquidityBuffer)
+            })
         );
     }
     
@@ -272,10 +274,12 @@ contract PositionManagerInitializationTest is PositionManagerTest {
     function testCannotInitializeTwice() public {
         vm.expectRevert();
         positionManager.initialize(
-            address(weth),
-            admin,
-            address(pool),
-            address(liquidityBuffer)
+            PositionManager.Init({
+                weth: address(weth),
+                admin: admin,
+                pool: address(pool),
+                liquidityBuffer: address(liquidityBuffer)
+            })
         );
     }
 }
@@ -468,7 +472,7 @@ contract PositionManagerRepayTest is PositionManagerTest {
     function testRepayWithExcessETH() public {
         uint256 repayAmount = 50 ether;
         uint256 sentAmount = 75 ether; // More than needed
-        uint256 expectedRefund = 25 ether;
+        // uint256 expectedRefund = 25 ether;
         
         vm.deal(executor, sentAmount);
         uint256 initialBalance = executor.balance;

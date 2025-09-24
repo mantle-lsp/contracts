@@ -172,8 +172,9 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
         vm.assume(vandal != positionManagerRole);
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.POSITION_MANAGER_ROLE()));
-        vm.prank(vandal);
+        vm.startPrank(vandal);
         liquidityBuffer.addPositionManager(managerAddress, 1000 ether, 0);
+        vm.stopPrank();
     }
 
     function testUpdatePositionManager() public {
@@ -295,8 +296,9 @@ contract LiquidityBufferFeeManagementTest is LiquidityBufferTest {
         vm.assume(vandal != address(proxyAdmin));
 
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.POSITION_MANAGER_ROLE()));
-        vm.prank(vandal);
+        vm.startPrank(vandal);
         liquidityBuffer.setFeeBasisPoints(100);
+        vm.stopPrank();
     }
 
     function testSetFeesReceiver() public {
@@ -356,8 +358,9 @@ contract LiquidityBufferDrawdownTest is LiquidityBufferTest {
         vm.assume(vandal != address(proxyAdmin));
 
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.DRAWDOWN_MANAGER_ROLE()));
-        vm.prank(vandal);
+        vm.startPrank(vandal);
         liquidityBuffer.addCumulativeDrawdown(100 ether);
+        vm.stopPrank();
     }
 }
 

@@ -12,6 +12,24 @@ tasks:
     generates:
       - ./deployments/$CHAIN_ID
 
+  _deployPositionManager:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - mkdir -p ./deployments
+      - forge script script/positionManager.s.sol:PositionManagerDeploy -vv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+    generates:
+      - ./deployments/$CHAIN_ID
+
+  _deployLiquidityBuffer:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - mkdir -p ./deployments
+      - forge script script/liquidityBuffer.s.sol:LiquidityBufferDeploy -vv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+    generates:
+      - ./deployments/$CHAIN_ID
+
   "devnet:deployAll":
     cmds:
       - task: _deployAll
@@ -25,6 +43,24 @@ tasks:
         vars:
           ENV_FILE: ".goerli.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
+  "sepolia:deployAll":
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".sepolia.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+  "sepolia:deployPositionManager":
+    cmds:
+      - task: _deployPositionManager
+        vars:
+          ENV_FILE: ".sepolia.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+  "sepolia:deployLiquidityBuffer":
+    cmds:
+      - task: _deployLiquidityBuffer
+        vars:
+          ENV_FILE: ".sepolia.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
 
   "mainnet:deployAll":
     desc: "Deploys all the contracts using variables from the associated environment file for the network"
@@ -33,7 +69,6 @@ tasks:
         vars:
           ENV_FILE: ".mainnet.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
-
   _addInitiator:
     internal: true
     dotenv: ["{{.ENV_FILE}}"]
