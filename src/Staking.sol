@@ -453,7 +453,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
 
         if (allocateToLiquidityBuffer > 0) {
             emit AllocatedETHToLiquidityBuffer(allocateToLiquidityBuffer);
-            liquidityBuffer.depositAndAllocate{value: allocateToLiquidityBuffer}();
+            liquidityBuffer.depositETH{value: allocateToLiquidityBuffer}();
         }
     }
 

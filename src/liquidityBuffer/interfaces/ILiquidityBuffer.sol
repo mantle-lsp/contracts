@@ -17,8 +17,8 @@ interface ILiquidityBuffer {
         uint256 interestClaimedFromManager;  // total interest claimed from this manager
     }
 
-    /// @notice Deposit funds from staking contract and allocate to default position manager
-    function depositAndAllocate() external payable;
+    /// @notice Deposit funds from staking contract
+    function depositETH() external payable;
 
     /// @notice Receive funds from position manager
     function receiveETHFromPositionManager() external payable;

@@ -12,7 +12,7 @@ contract LiquidityBufferStub is ILiquidityBuffer {
     constructor() {
     }
 
-    function depositAndAllocate() external payable {
+    function depositETH() external payable {
         totalFundsReceived += msg.value;
     }
 

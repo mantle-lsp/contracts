@@ -92,6 +92,9 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     uint256 public totalFeesCollected;
 
+    /// @notice Controls whether to execute allocation logic in depositETH method
+    bool public shouldExecuteAllocation;
+
     struct Init {
         address admin;
         address liquidityManager;
@@ -132,11 +135,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         _grantRole(INTEREST_TOPUP_ROLE, init.interestTopUp);
         _grantRole(DRAWDOWN_MANAGER_ROLE, init.drawdownManager);
         
-        _grantRole(LIQUIDITY_MANAGER_ROLE, address(stakingContract));
-
         stakingContract = init.staking;
         pauser = init.pauser;
         feesReceiver = init.feesReceiver;
+        shouldExecuteAllocation = true;
+        
+        _grantRole(LIQUIDITY_MANAGER_ROLE, address(stakingContract));
     }
 
     // ========================================= VIEW FUNCTIONS =========================================
@@ -301,11 +305,20 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         emit ProtocolConfigChanged(this.setFeesReceiver.selector, "setFeesReceiver(address)", abi.encode(newReceiver));
     }
 
+    /// @notice Sets whether to execute allocation logic in depositETH method.
+    /// @param executeAllocation Whether to execute allocation logic.
+    function setShouldExecuteAllocation(bool executeAllocation) external onlyRole(POSITION_MANAGER_ROLE) {
+        shouldExecuteAllocation = executeAllocation;
+        emit ProtocolConfigChanged(this.setShouldExecuteAllocation.selector, "setShouldExecuteAllocation(bool)", abi.encode(executeAllocation));
+    }
+
     // ========================================= LIQUIDITY MANAGEMENT =========================================
 
-    function depositAndAllocate() external payable onlyRole(LIQUIDITY_MANAGER_ROLE) {
+    function depositETH() external payable onlyRole(LIQUIDITY_MANAGER_ROLE) {
         _receiveETHFromStaking(msg.value);
-        _allocateETHToManager(defaultManagerId, msg.value);
+        if (shouldExecuteAllocation) {
+            _allocateETHToManager(defaultManagerId, msg.value);
+        }
     }
 
     function withdrawAndReturn(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
@@ -325,9 +338,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         _returnETHToStaking(amount);
     }
 
-    function receiveETHFromStaking() external payable onlyStakingContract {
-        _receiveETHFromStaking(msg.value);
-    }
     function receiveETHFromPositionManager() external payable onlyPositionManagerContract {
         // This function receives ETH from position managers
         // The ETH is already in the contract balance, no additional processing needed
@@ -411,6 +421,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         }
         if (managerId >= positionManagerCount) revert LiquidityBuffer__ManagerNotFound();
         PositionManagerConfig memory config = positionManagerConfigs[managerId];
+        if (!config.isActive) revert LiquidityBuffer__ManagerInactive();
         PositionAccountant storage accounting = positionAccountants[managerId];
 
         // Check sufficient allocation

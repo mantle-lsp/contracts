@@ -457,7 +457,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
         // Fund the liquidity buffer contract with ETH
         vm.deal(address(liquidityManager), depositAmount);
         vm.prank(liquidityManager);
-        liquidityBuffer.depositAndAllocate{value: depositAmount}();
+        liquidityBuffer.depositETH{value: depositAmount}();
 
         assertEq(liquidityBuffer.totalFundsReceived(), depositAmount);
         assertEq(liquidityBuffer.totalAllocatedBalance(), depositAmount);
@@ -469,7 +469,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
 
     //     vm.prank(liquidityManager);
     //     vm.expectRevert(LiquidityBuffer.LiquidityBuffer__Paused.selector);
-    //     liquidityBuffer.depositAndAllocate{value: 100 ether}();
+    //     liquidityBuffer.depositETH{value: 100 ether}();
     // }
 
     function testDepositAndAllocateUnauthorized(address vandal, uint256 amount) public {
@@ -483,7 +483,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
 
         vm.startPrank(vandal);
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.LIQUIDITY_MANAGER_ROLE()));
-        liquidityBuffer.depositAndAllocate{value: amount}();
+        liquidityBuffer.depositETH{value: amount}();
         vm.stopPrank();
     }
 
@@ -494,7 +494,7 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
 
         vm.prank(liquidityManager);
         vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ManagerNotFound.selector);
-        liquidityBuffer.depositAndAllocate{value: depositAmount}();
+        liquidityBuffer.depositETH{value: depositAmount}();
     }
 
     function testDepositAndAllocateExceedsCap() public {
@@ -510,15 +510,22 @@ contract LiquidityBufferDepositAndAllocateTest is LiquidityBufferTest {
 
         vm.prank(liquidityManager);
         vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ExceedsAllocationCap.selector);
-        liquidityBuffer.depositAndAllocate{value: depositAmount}();
+        liquidityBuffer.depositETH{value: depositAmount}();
     }
 }
 
 contract LiquidityBufferAllocateETHTest is LiquidityBufferTest {
     function _depositIntoLiquidityBuffer(uint256 amount) internal {
+        vm.prank(positionManagerRole);
+        liquidityBuffer.setShouldExecuteAllocation(false);
+        
+        vm.startPrank(admin);
+        liquidityBuffer.grantRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), address(staking));
+        vm.stopPrank();
+
         vm.deal(address(staking), amount);
         vm.prank(address(staking));
-        liquidityBuffer.receiveETHFromStaking{value: amount}();
+        liquidityBuffer.depositETH{value: amount}();
         assertEq(liquidityBuffer.totalFundsReceived(), amount);
     }
 
@@ -682,7 +689,7 @@ contract LiquidityBufferInterestTest is LiquidityBufferTest {
         vm.deal(address(staking), amount);
 
         vm.prank(address(staking));
-        liquidityBuffer.depositAndAllocate{value: amount}();
+        liquidityBuffer.depositETH{value: amount}();
         assertEq(liquidityBuffer.totalFundsReceived(), amount);
         assertEq(liquidityBuffer.totalAllocatedBalance(), amount);
         (uint256 currentAllocatedBalance, uint256 currentInterestClaimed) = liquidityBuffer.positionAccountants(0);
@@ -789,6 +796,13 @@ contract LiquidityBufferInterestTest is LiquidityBufferTest {
 
 contract LiquidityBufferReceiveETHTest is LiquidityBufferTest {
     function testReceiveETHFromStaking() public {
+        vm.prank(positionManagerRole);
+        liquidityBuffer.setShouldExecuteAllocation(false);
+
+        vm.startPrank(admin);
+        liquidityBuffer.grantRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), address(staking));
+        vm.stopPrank();
+
         uint256 amount = 100 ether;
 
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
@@ -796,7 +810,7 @@ contract LiquidityBufferReceiveETHTest is LiquidityBufferTest {
 
         vm.deal(address(staking), amount);
         vm.prank(address(staking));
-        liquidityBuffer.receiveETHFromStaking{value: amount}();
+        liquidityBuffer.depositETH{value: amount}();
 
         assertEq(liquidityBuffer.totalFundsReceived(), amount);
     }
@@ -805,21 +819,31 @@ contract LiquidityBufferReceiveETHTest is LiquidityBufferTest {
         vm.assume(vandal != address(staking));
         vm.assume(vandal != address(proxyAdmin));
         vm.assume(vandal != address(admin));
+        vm.assume(vandal != address(liquidityManager));
+
+        vm.prank(positionManagerRole);
+        liquidityBuffer.setShouldExecuteAllocation(false);
 
         vm.deal(vandal, amount);
         vm.startPrank(vandal);
-        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__NotStakingContract.selector);
-        liquidityBuffer.receiveETHFromStaking{value: amount}();
+        vm.expectRevert(missingRoleError(vandal, liquidityBuffer.LIQUIDITY_MANAGER_ROLE()));
+        liquidityBuffer.depositETH{value: amount}();
         vm.stopPrank();
     }
 
     function testReturnETHToStaking() public {
         uint256 amount = 100 ether;
 
+        vm.prank(positionManagerRole);
+        liquidityBuffer.setShouldExecuteAllocation(false);
+        vm.startPrank(admin);
+        liquidityBuffer.grantRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), address(staking));
+        vm.stopPrank();
+
         // First, deposit ETH into the liquidity buffer via staking contract
         vm.deal(address(staking), amount);
         vm.prank(address(staking));
-        liquidityBuffer.receiveETHFromStaking{value: amount}();
+        liquidityBuffer.depositETH{value: amount}();
         assertEq(liquidityBuffer.totalFundsReceived(), amount);
         assertEq(liquidityBuffer.totalFundsReturned(), 0);
         assertEq(address(liquidityBuffer).balance, amount);
