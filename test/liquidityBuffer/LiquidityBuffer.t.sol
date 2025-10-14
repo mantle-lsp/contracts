@@ -12,7 +12,7 @@ import {StringsUpgradeable} from "openzeppelin-upgradeable/utils/StringsUpgradea
 
 import {LiquidityBuffer, LiquidityBufferEvents} from "../../src/liquidityBuffer/LiquidityBuffer.sol";
 import {ILiquidityBuffer} from "../../src/liquidityBuffer/interfaces/ILiquidityBuffer.sol";
-import {IPositionManager} from "../../src/LiquidityBuffer/interfaces/IPositionManager.sol";
+import {IPositionManager} from "../../src/liquidityBuffer/interfaces/IPositionManager.sol";
 
 import {BaseTest} from "../BaseTest.sol";
 import {PauserStub} from "../doubles/PauserStub.sol";
