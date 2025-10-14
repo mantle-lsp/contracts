@@ -155,10 +155,24 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
             depositContract: IDepositContract(params.depositContract),
             oracle: ds.oracle,
             returnsAggregator: address(ds.aggregator),
-            unstakeRequestsManager: ds.unstakeRequestsManager,
-            liquidityBuffer: ds.liquidityBuffer
+            unstakeRequestsManager: ds.unstakeRequestsManager
         })
     );
+    ds.liquidityBuffer = initLiquidityBuffer(
+        proxyAdmin,
+        ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
+        LiquidityBuffer.Init({
+            admin: params.admin,
+            liquidityManager: params.admin,
+            positionManager: params.admin,
+            interestTopUp: params.admin,
+            drawdownManager: params.admin,
+            feesReceiver: params.feesReceiver,
+            staking: Staking(payable(address(ds.staking))),
+            pauser: ds.pauser
+        })
+    );
+    initStakingV2(proxyAdmin, ITransparentUpgradeableProxy(address(ds.staking)), ds.liquidityBuffer);
 
     ds.aggregator = initReturnsAggregator(
         proxyAdmin,
@@ -212,21 +226,6 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
             mETH: ds.mETH,
             stakingContract: Staking(payable(address(ds.staking))),
             numberOfBlocksToFinalize: 128 // 4 epochs (in blocks) to finalize unstake requests.
-        })
-    );
-
-    ds.liquidityBuffer = initLiquidityBuffer(
-        proxyAdmin,
-        ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
-        LiquidityBuffer.Init({
-            admin: params.admin,
-            liquidityManager: params.admin,
-            positionManager: params.admin,
-            interestTopUp: params.admin,
-            drawdownManager: params.admin,
-            feesReceiver: params.feesReceiver,
-            staking: Staking(payable(address(ds.staking))),
-            pauser: ds.pauser
         })
     );
 
@@ -355,6 +354,14 @@ function initStaking(TimelockController proxyAdmin, ITransparentUpgradeableProxy
 {
     Staking impl = new Staking();
     upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(Staking.initialize, init));
+    return Staking(payable(address(proxy)));
+}
+
+function initStakingV2(TimelockController proxyAdmin, ITransparentUpgradeableProxy proxy, LiquidityBuffer lb)
+    returns (Staking)
+{
+    Staking impl = new Staking();
+    upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(Staking.initializeV2, lb));
     return Staking(payable(address(proxy)));
 }
 

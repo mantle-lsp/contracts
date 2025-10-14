@@ -264,7 +264,6 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         IOracleReadRecord oracle;
         IPauserRead pauser;
         IUnstakeRequestsManager unstakeRequestsManager;
-        ILiquidityBuffer liquidityBuffer;
     }
 
     constructor() {
@@ -306,8 +305,10 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         // Set the maximum mETH supply to some sensible amount which is expected to be changed as the
         // protocol ramps up.
         maximumMETHSupply = 1024 ether;
-
-        liquidityBuffer = init.liquidityBuffer;
+    }
+        
+    function initializeV2(ILiquidityBuffer lb) public reinitializer(2) {
+        liquidityBuffer = lb;
     }
 
     /// @notice Interface for users to stake their ETH with the protocol. Note: when allowlist is enabled, only users

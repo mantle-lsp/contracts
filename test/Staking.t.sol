@@ -108,10 +108,10 @@ contract StakingTest is BaseTest, StakingEvents {
             depositContract: depositContract,
             oracle: oracle,
             returnsAggregator: returnsAggregator,
-            unstakeRequestsManager: unstakeManager,
-            liquidityBuffer: liquidityBuffer
+            unstakeRequestsManager: unstakeManager
         });
         upgradeToAndCall(proxyAdmin, stakingProxy, address(_staking), abi.encodeCall(Staking.initialize, init));
+        upgradeToAndCall(proxyAdmin, stakingProxy, address(_staking), abi.encodeCall(Staking.initializeV2, liquidityBuffer));
         tStaking = TestableStaking(payable(address(stakingProxy)));
         staking = tStaking;
     }
