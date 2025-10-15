@@ -11,16 +11,20 @@ import {DataTypes} from "aave-v3/protocol/libraries/types/DataTypes.sol";
  */
 contract MockAToken is ERC20 {
     address public underlyingAsset;
+    address public owner;
     
-    constructor(address _underlyingAsset) ERC20("Mock aToken", "maTOKEN") {
+    constructor(address _owner, address _underlyingAsset) ERC20("Mock aToken", "maTOKEN") {
+        owner = _owner;
         underlyingAsset = _underlyingAsset;
     }
-    
+
     function mint(address to, uint256 amount) external {
+        require(msg.sender == owner, "not owner");
         _mint(to, amount);
     }
-    
+
     function burn(address from, uint256 amount) external {
+        require(msg.sender == owner, "not owner");
         _burn(from, amount);
     }
 }
@@ -39,7 +43,7 @@ contract MockPool {
 
     constructor(address _weth) {
         weth = _weth;
-        aToken = new MockAToken(_weth);
+        aToken = new MockAToken(address(this), _weth);
     }
 
     function deposit(address asset, uint256 amount, address onBehalfOf, uint16) external {
