@@ -97,6 +97,8 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     /// @notice Controls whether to execute allocation logic in depositETH method
     bool public shouldExecuteAllocation;
+    /// @notice Mapping from manager address to boolean indicating if it is registered
+    mapping(address => bool) public isRegisteredManager;
 
     struct Init {
         address admin;
@@ -113,6 +115,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     error LiquidityBuffer__ManagerNotFound();
     error LiquidityBuffer__ManagerInactive();
+    error LiquidityBuffer__ManagerAlreadyRegistered();
     error LiquidityBuffer__ExceedsAllocationCap();
     error LiquidityBuffer__InsufficientBalance();
     error LiquidityBuffer__InsufficientAllocation();
@@ -197,6 +200,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         address managerAddress,
         uint256 allocationCap
     ) external onlyRole(POSITION_MANAGER_ROLE) returns (uint256 managerId) {
+        if (isRegisteredManager[managerAddress]) revert LiquidityBuffer__ManagerAlreadyRegistered();
         managerId = positionManagerCount;
         positionManagerCount++;
 
@@ -209,6 +213,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
             allocatedBalance: 0,
             interestClaimedFromManager: 0
         });
+        isRegisteredManager[managerAddress] = true;
 
         totalAllocationCapacity += allocationCap;
         emit ProtocolConfigChanged(

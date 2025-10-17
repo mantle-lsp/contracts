@@ -1254,4 +1254,18 @@ contract LiquidityBufferFuzzTest is LiquidityBufferTest {
 
         assertEq(liquidityBuffer.getAvailableCapacity(), totalCapacity - allocatedBalance);
     }
+
+    function testFuzzIsRegisteredManager(address managerAddress) public {
+        vm.assume(managerAddress != address(0));
+        
+        // Initially should not be registered
+        assertFalse(liquidityBuffer.isRegisteredManager(managerAddress));
+        
+        // Add manager
+        vm.prank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
+        
+        // Now should be registered
+        assertTrue(liquidityBuffer.isRegisteredManager(managerAddress));
+    }
 }
