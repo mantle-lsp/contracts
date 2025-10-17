@@ -147,6 +147,8 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function setLiquidityBuffer(address _liquidityBuffer) external onlyRole(MANAGER_ROLE) {
+        _revokeRole(EXECUTOR_ROLE, address(liquidityBuffer));
+        _grantRole(EXECUTOR_ROLE, _liquidityBuffer);
         liquidityBuffer = ILiquidityBuffer(_liquidityBuffer);
     }
 
