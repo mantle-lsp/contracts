@@ -19,8 +19,8 @@ contract LiquidityBufferStub is ILiquidityBuffer {
     function getAvailableBalance() public view returns (uint256) {
         return totalFundsReceived - totalFundsReturned;
     }
-    function addCumulativeDrawdown(uint256 v) public {        
-        cumulativeDrawdown += v;
+    function setCumulativeDrawdown(uint256 v) public {        
+        cumulativeDrawdown = v;
     }
 
     function receiveETHFromPositionManager() external payable {

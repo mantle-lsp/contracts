@@ -38,10 +38,6 @@ contract TestableLiquidityBuffer is LiquidityBuffer {
         totalAllocationCapacity = newTotalAllocationCapacity;
     }
 
-    function setCumulativeDrawdown(uint256 newCumulativeDrawdown) public {
-        cumulativeDrawdown = newCumulativeDrawdown;
-    }
-
     function setPositionManagerCount(uint256 newCount) public {
         positionManagerCount = newCount;
     }
@@ -345,41 +341,41 @@ contract LiquidityBufferFeeManagementTest is LiquidityBufferTest {
 }
 
 contract LiquidityBufferDrawdownTest is LiquidityBufferTest {
-    function testAddCumulativeDrawdown() public {
+    function testSetCumulativeDrawdown() public {
         uint256 drawdownAmount = 100 ether;
 
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
         emit ProtocolConfigChanged(
-            liquidityBuffer.addCumulativeDrawdown.selector,
-            "addCumulativeDrawdown(uint256)",
+            liquidityBuffer.setCumulativeDrawdown.selector,
+            "setCumulativeDrawdown(uint256)",
             abi.encode(drawdownAmount)
         );
 
         vm.prank(drawdownManagerRole);
-        liquidityBuffer.addCumulativeDrawdown(drawdownAmount);
+        liquidityBuffer.setCumulativeDrawdown(drawdownAmount);
 
         assertEq(liquidityBuffer.cumulativeDrawdown(), drawdownAmount);
     }
 
-    function testAddCumulativeDrawdownMultiple() public {
+    function testSetCumulativeDrawdownMultiple() public {
         uint256 drawdown1 = 50 ether;
         uint256 drawdown2 = 75 ether;
 
         vm.startPrank(drawdownManagerRole);
-        liquidityBuffer.addCumulativeDrawdown(drawdown1);
-        liquidityBuffer.addCumulativeDrawdown(drawdown2);
+        liquidityBuffer.setCumulativeDrawdown(drawdown1);
+        liquidityBuffer.setCumulativeDrawdown(drawdown2);
         vm.stopPrank();
 
-        assertEq(liquidityBuffer.cumulativeDrawdown(), drawdown1 + drawdown2);
+        assertEq(liquidityBuffer.cumulativeDrawdown(), drawdown2);
     }
 
-    function testAddCumulativeDrawdownUnauthorized(address vandal) public {
+    function testSetCumulativeDrawdownUnauthorized(address vandal) public {
         vm.assume(vandal != drawdownManagerRole);
         vm.assume(vandal != address(proxyAdmin));
 
         vm.expectRevert(missingRoleError(vandal, liquidityBuffer.DRAWDOWN_MANAGER_ROLE()));
         vm.startPrank(vandal);
-        liquidityBuffer.addCumulativeDrawdown(100 ether);
+        liquidityBuffer.setCumulativeDrawdown(100 ether);
         vm.stopPrank();
     }
 }
@@ -1228,11 +1224,11 @@ contract LiquidityBufferFuzzTest is LiquidityBufferTest {
         assertEq(liquidityBuffer.feesBasisPoints(), basisPoints);
     }
 
-    function testFuzzAddCumulativeDrawdown(uint256 drawdownAmount) public {
+    function testFuzzSetCumulativeDrawdown(uint256 drawdownAmount) public {
         vm.assume(drawdownAmount <= type(uint128).max); // Prevent overflow
 
         vm.prank(drawdownManagerRole);
-        liquidityBuffer.addCumulativeDrawdown(drawdownAmount);
+        liquidityBuffer.setCumulativeDrawdown(drawdownAmount);
 
         assertEq(liquidityBuffer.cumulativeDrawdown(), drawdownAmount);
     }

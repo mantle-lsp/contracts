@@ -266,12 +266,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         );
     }
 
-    function addCumulativeDrawdown(uint256 drawdownAmount) external onlyRole(DRAWDOWN_MANAGER_ROLE) {        
-        cumulativeDrawdown += drawdownAmount;
+    function setCumulativeDrawdown(uint256 drawdownAmount) external onlyRole(DRAWDOWN_MANAGER_ROLE) {        
+        cumulativeDrawdown = drawdownAmount;
         
         emit ProtocolConfigChanged(
-            this.addCumulativeDrawdown.selector,
-            "addCumulativeDrawdown(uint256)",
+            this.setCumulativeDrawdown.selector,
+            "setCumulativeDrawdown(uint256)",
             abi.encode(drawdownAmount)
         );
     }
