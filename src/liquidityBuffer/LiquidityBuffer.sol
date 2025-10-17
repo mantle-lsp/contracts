@@ -323,6 +323,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     // ========================================= LIQUIDITY MANAGEMENT =========================================
 
     function depositETH() external payable onlyRole(LIQUIDITY_MANAGER_ROLE) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _receiveETHFromStaking(msg.value);
         if (shouldExecuteAllocation) {
             _allocateETHToManager(defaultManagerId, msg.value);
