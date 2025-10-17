@@ -107,65 +107,6 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         emit Withdraw(msg.sender, amountToWithdraw);
     }
 
-    function repay(uint256 amount) external payable override onlyRole(EXECUTOR_ROLE) {
-        require(msg.value > 0, 'No ETH sent');
-        
-        // Get debt token to check current debt
-        address debtToken = pool.getReserveVariableDebtToken(address(weth));
-        uint256 currentDebt = IERC20(debtToken).balanceOf(address(this));
-        
-        uint256 repayAmount = amount;
-        if (amount == type(uint256).max) {
-            repayAmount = currentDebt;
-        }
-        
-        // Use the smaller of the two amounts
-        if (repayAmount > currentDebt) {
-            repayAmount = currentDebt;
-        }
-        
-        require(msg.value >= repayAmount, 'Insufficient ETH for repayment');
-        
-        // Wrap ETH to WETH
-        weth.deposit{value: repayAmount}();
-        
-        // Repay the debt
-        pool.repay(
-            address(weth),
-            repayAmount,
-            uint256(DataTypes.InterestRateMode.VARIABLE),
-            address(this)
-        );
-        
-        // Refund excess ETH
-        if (msg.value > repayAmount) {
-            _safeTransferETH(msg.sender, msg.value - repayAmount);
-        }
-        
-        emit Repay(msg.sender, repayAmount, uint256(DataTypes.InterestRateMode.VARIABLE));
-    }
-
-    function borrow(uint256 amount, uint16 referralCode) external override onlyRole(EXECUTOR_ROLE) {
-        require(amount > 0, 'Invalid amount');
-        
-        // Borrow WETH from pool
-        pool.borrow(
-            address(weth),
-            amount,
-            uint256(DataTypes.InterestRateMode.VARIABLE),
-            referralCode,
-            address(this)
-        );
-        
-        // Unwrap WETH to ETH
-        weth.withdraw(amount);
-        
-        // Transfer ETH to caller safely
-        _safeTransferETH(msg.sender, amount);
-        
-        emit Borrow(msg.sender, amount, uint256(DataTypes.InterestRateMode.VARIABLE));
-    }
-
     function getUnderlyingBalance() external view returns (uint256) {
         IERC20 aWETH = IERC20(pool.getReserveAToken(address(weth)));
         return aWETH.balanceOf(address(this));
