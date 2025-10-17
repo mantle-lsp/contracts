@@ -814,6 +814,311 @@ contract LiquidityBufferInterestTest is LiquidityBufferTest {
         assertEq(liquidityBuffer.totalInterestToppedUp(), expectedTopUp);
         assertEq(liquidityBuffer.totalFeesCollected(), expectedFees);
     }
+
+    // ========================================= PENDING INTEREST TESTS =========================================
+
+    function testPendingInterestInitialState() public {
+        assertEq(liquidityBuffer.pendingInterest(), 0);
+    }
+
+    function testPendingInterestIncreasesOnClaimInterest() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Initially no pending interest
+        assertEq(liquidityBuffer.pendingInterest(), 0);
+
+        // Claim interest should increase pending interest
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+        assertEq(liquidityBuffer.totalInterestClaimed(), interestAmount);
+    }
+
+    function testPendingInterestDecreasesOnTopUp() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+        uint256 topUpAmount = 30 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Claim interest first
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+
+        // Top up partial amount
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.topUpInterestToStaking(topUpAmount);
+
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount - topUpAmount);
+    }
+
+    function testTopUpInterestExceedsPendingInterestReverts() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+        uint256 excessiveAmount = 100 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Claim interest first
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+
+        vm.deal(address(liquidityBuffer), excessiveAmount);
+
+        // Try to top up more than pending interest - should revert
+        vm.prank(interestTopUpRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ExceedsPendingInterest.selector);
+        liquidityBuffer.topUpInterestToStaking(excessiveAmount);
+    }
+
+    function testTopUpInterestWithoutClaimingFirstReverts() public {
+        uint256 topUpAmount = 30 ether;
+        vm.deal(address(liquidityBuffer), topUpAmount);
+
+        // Try to top up without claiming interest first - should revert
+        vm.prank(interestTopUpRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ExceedsPendingInterest.selector);
+        liquidityBuffer.topUpInterestToStaking(topUpAmount);
+    }
+
+    function testPendingInterestWithMultipleClaims() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount1 = 30 ether;
+        uint256 interestAmount2 = 20 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+
+        // First claim
+        _mockInterestInPositionManager(manager, interestAmount1);
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount1);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount1);
+
+        // Second claim
+        _mockInterestInPositionManager(manager, interestAmount2);
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount2);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount1 + interestAmount2);
+    }
+
+    function testPendingInterestWithPartialTopUp() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+        uint256 topUpAmount1 = 20 ether;
+        uint256 topUpAmount2 = 15 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Claim interest
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+
+        // First partial top up
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.topUpInterestToStaking(topUpAmount1);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount - topUpAmount1);
+
+        // Second partial top up
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.topUpInterestToStaking(topUpAmount2);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount - topUpAmount1 - topUpAmount2);
+    }
+
+    function testFeesOnlyChargedOnActualInterest() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+        uint16 feesBasisPoints = 100; // 1%
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        vm.prank(positionManagerRole);
+        liquidityBuffer.setFeeBasisPoints(feesBasisPoints);
+
+        // Claim interest first
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+
+        uint256 expectedFees = Math.mulDiv(feesBasisPoints, interestAmount, 10000);
+        uint256 expectedTopUp = interestAmount - expectedFees;
+
+        // Top up the interest
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.topUpInterestToStaking(interestAmount);
+
+        // Verify fees were charged correctly
+        assertEq(liquidityBuffer.totalFeesCollected(), expectedFees);
+        assertEq(liquidityBuffer.totalInterestToppedUp(), expectedTopUp);
+        assertEq(feesReceiver.balance, expectedFees);
+    }
+
+    function testClaimInterestAndTopUpUpdatesPendingInterestCorrectly() public {
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Use claimInterestAndTopUp function
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestAndTopUp(managerId, interestAmount);
+
+        // Pending interest should be 0 since all was topped up
+        assertEq(liquidityBuffer.pendingInterest(), 0);
+        assertEq(liquidityBuffer.totalInterestClaimed(), interestAmount);
+    }
+
+    // ========================================= ACCOUNTING ISSUE TESTS =========================================
+
+    function testScenario1_InflatedAvailableBalance() public {
+        // Scenario 1: LIQUIDITY_MANAGER withdraws ETH, INTEREST_TOPUP tops up without incrementing totalFundsReturned
+        uint256 allocatedBalance = 1000 ether;
+        uint256 withdrawAmount = 200 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+
+        // Record initial state
+        uint256 initialAvailableBalance = liquidityBuffer.getAvailableBalance();
+        uint256 initialTotalFundsReturned = liquidityBuffer.totalFundsReturned();
+
+        // LIQUIDITY_MANAGER withdraws ETH from manager (leaves it in LiquidityBuffer contract)
+        vm.prank(liquidityManager);
+        liquidityBuffer.withdrawETHFromManager(managerId, withdrawAmount);
+
+        // Verify ETH is now in LiquidityBuffer contract
+        assertEq(address(liquidityBuffer).balance, withdrawAmount);
+        
+        // The available balance should remain the same because withdrawETHFromManager
+        // doesn't change totalFundsReceived or totalFundsReturned
+        assertEq(liquidityBuffer.getAvailableBalance(), initialAvailableBalance);
+
+        // INTEREST_TOPUP_ROLE calls topUpInterestToStaking() without incrementing totalFundsReturned
+        // This should fail due to pendingInterest protection, but let's simulate the scenario
+        // by manually setting pendingInterest to allow the top-up
+        vm.prank(interestTopUpRole);
+        // This will revert due to pendingInterest check, but the issue is that if it succeeded,
+        // totalFundsReturned wouldn't be incremented, leading to inflated getAvailableBalance()
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ExceedsPendingInterest.selector);
+        liquidityBuffer.topUpInterestToStaking(withdrawAmount);
+
+        // The issue: if topUpInterestToStaking() succeeded without incrementing totalFundsReturned,
+        // getAvailableBalance() would return an inflated value because it's calculated as:
+        // totalFundsReceived - totalFundsReturned
+        // But the ETH was actually returned to staking without updating totalFundsReturned
+        
+        // Verify that totalFundsReturned wasn't incremented (demonstrating the issue)
+        assertEq(liquidityBuffer.totalFundsReturned(), initialTotalFundsReturned);
+    }
+
+    function testScenario2_DeflatedAvailableBalance() public {
+        // Scenario 2: INTEREST_TOPUP claims interest, LIQUIDITY_MANAGER returns with incorrect totalFundsReturned increment
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Record initial state
+        uint256 initialAvailableBalance = liquidityBuffer.getAvailableBalance();
+        uint256 initialTotalFundsReturned = liquidityBuffer.totalFundsReturned();
+
+        // INTEREST_TOPUP_ROLE claims interest (leaves it in LiquidityBuffer contract)
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+
+        // Verify interest is now in LiquidityBuffer contract
+        assertEq(address(liquidityBuffer).balance, interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+
+        // LIQUIDITY_MANAGER_ROLE calls returnETHToStaking() with incorrect totalFundsReturned increment
+        vm.prank(liquidityManager);
+        liquidityBuffer.returnETHToStaking(interestAmount);
+
+        // The issue: returnETHToStaking() increments totalFundsReturned, but this ETH was interest,
+        // not principal. This leads to deflated getAvailableBalance() because:
+        // getAvailableBalance() = totalFundsReceived - totalFundsReturned
+        // But totalFundsReturned now includes interest that wasn't part of totalFundsReceived
+
+        uint256 finalAvailableBalance = liquidityBuffer.getAvailableBalance();
+        uint256 finalTotalFundsReturned = liquidityBuffer.totalFundsReturned();
+
+        // The available balance is now deflated because totalFundsReturned was incorrectly incremented
+        // by the interest amount, even though that interest was never part of totalFundsReceived
+        assertEq(finalTotalFundsReturned, initialTotalFundsReturned + interestAmount);
+        assertEq(finalAvailableBalance, initialAvailableBalance - interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+    }
+
+    function testScenario3_DeflatedAvailableBalanceWithResupply() public {
+        // Scenario 3: INTEREST_TOPUP claims interest, LIQUIDITY_MANAGER allocates and withdraws
+        uint256 allocatedBalance = 1000 ether;
+        uint256 interestAmount = 50 ether;
+        uint256 resupplyAmount = 30 ether;
+
+        (uint256 managerId, PositionManagerStub manager) = _addPositionManager();
+        _depositAndAllocateIntoLiquidityBuffer(allocatedBalance);
+        _mockInterestInPositionManager(manager, interestAmount);
+
+        // Record initial state
+        uint256 initialAvailableBalance = liquidityBuffer.getAvailableBalance();
+        uint256 initialTotalFundsReturned = liquidityBuffer.totalFundsReturned();
+
+        // INTEREST_TOPUP_ROLE claims interest (leaves it in LiquidityBuffer contract)
+        vm.prank(interestTopUpRole);
+        liquidityBuffer.claimInterestFromManager(managerId, interestAmount);
+
+        // Verify interest is now in LiquidityBuffer contract
+        assertEq(address(liquidityBuffer).balance, interestAmount);
+        assertEq(liquidityBuffer.pendingInterest(), interestAmount);
+
+        // LIQUIDITY_MANAGER_ROLE allocates some of the interest back to manager (resupply)
+        vm.prank(liquidityManager);
+        liquidityBuffer.allocateETHToManager(managerId, resupplyAmount);
+
+        // Verify some ETH was allocated back to manager
+        assertEq(address(liquidityBuffer).balance, interestAmount - resupplyAmount);
+        assertEq(liquidityBuffer.totalAllocatedBalance(), allocatedBalance + resupplyAmount);
+
+        // LIQUIDITY_MANAGER_ROLE calls withdrawAndReturn() - this treats the interest as part of totalFundsReturned
+        uint256 withdrawAndReturnAmount = resupplyAmount;
+        vm.prank(liquidityManager);
+        liquidityBuffer.withdrawAndReturn(managerId, withdrawAndReturnAmount);
+
+        // The issue: withdrawAndReturn() calls returnETHToStaking() which increments totalFundsReturned,
+        // but this ETH was originally interest, not principal. This leads to deflated getAvailableBalance()
+        // because totalFundsReturned is incremented by interest that was never part of totalFundsReceived
+
+        uint256 finalAvailableBalance = liquidityBuffer.getAvailableBalance();
+        uint256 finalTotalFundsReturned = liquidityBuffer.totalFundsReturned();
+
+        // The available balance is deflated because totalFundsReturned was incremented by interest
+        assertEq(finalTotalFundsReturned, initialTotalFundsReturned + withdrawAndReturnAmount);
+        assertEq(finalAvailableBalance, initialAvailableBalance - withdrawAndReturnAmount);
+
+        // The problem: getAvailableBalance() = totalFundsReceived - totalFundsReturned
+        // But totalFundsReturned now includes interest that was never part of totalFundsReceived
+        // This makes the available balance appear smaller than it actually is
+    }
 }
 
 contract LiquidityBufferReceiveETHTest is LiquidityBufferTest {

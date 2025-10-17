@@ -92,6 +92,9 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     uint256 public totalFeesCollected;
 
+    /// @notice Tracks pending interest available for top-up operations
+    uint256 public pendingInterest;
+
     /// @notice Controls whether to execute allocation logic in depositETH method
     bool public shouldExecuteAllocation;
 
@@ -119,6 +122,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     error LiquidityBuffer__ZeroAddress();
     error LiquidityBuffer__NotStakingContract();
     error LiquidityBuffer__NotPositionManagerContract();
+    error LiquidityBuffer__ExceedsPendingInterest();
     // ========================================= INITIALIZATION =========================================
 
     constructor() {
@@ -381,6 +385,10 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         if (pauser.isLiquidityBufferPaused()) {
             revert LiquidityBuffer__Paused();
         }
+        if (amount > pendingInterest) {
+            revert LiquidityBuffer__ExceedsPendingInterest();
+        }
+        pendingInterest -= amount;
         uint256 fees = Math.mulDiv(feesBasisPoints, amount, _BASIS_POINTS_DENOMINATOR);
         uint256 topUpAmount = amount - fees;
         stakingContract.topUp{value: topUpAmount}();
@@ -407,6 +415,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
             // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
             positionAccountants[managerId].interestClaimedFromManager += interestAmount;
             totalInterestClaimed += interestAmount;
+            pendingInterest += interestAmount;
             emit InterestClaimed(managerId, interestAmount);
             
             // Withdraw interest from position manager AFTER state updates
