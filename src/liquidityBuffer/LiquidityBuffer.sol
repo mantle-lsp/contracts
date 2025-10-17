@@ -224,6 +224,10 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         }
 
         PositionManagerConfig storage config = positionManagerConfigs[managerId];
+
+        if (newAllocationCap < positionAccountants[managerId].allocatedBalance) {
+            revert LiquidityBuffer__InvalidConfiguration();
+        }
         
         // Update total allocation capacity
         totalAllocationCapacity = totalAllocationCapacity - config.allocationCap + newAllocationCap;

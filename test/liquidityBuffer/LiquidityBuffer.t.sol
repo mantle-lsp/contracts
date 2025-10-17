@@ -205,6 +205,28 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         liquidityBuffer.updatePositionManager(0, 1000 ether, true);
     }
 
+    function testUpdatePositionManagerInvalidAllocationCap() public {
+        address managerAddress = address(new PositionManagerStub(0, address(0)));
+        uint256 initialAllocationCap = 1000 ether;
+        uint256 allocatedBalance = 500 ether;
+        uint256 newAllocationCap = 300 ether; // Less than allocated balance
+
+        vm.startPrank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, initialAllocationCap);
+        vm.stopPrank();
+
+        // Set allocated balance for this manager
+        ILiquidityBuffer.PositionAccountant memory accountant = ILiquidityBuffer.PositionAccountant({
+            allocatedBalance: allocatedBalance,
+            interestClaimedFromManager: 0
+        });
+        tLiquidityBuffer.setPositionAccountant(0, accountant);
+
+        vm.prank(positionManagerRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__InvalidConfiguration.selector);
+        liquidityBuffer.updatePositionManager(0, newAllocationCap, true);
+    }
+
     function testTogglePositionManagerStatus() public {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
