@@ -95,6 +95,9 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     /// @notice Tracks pending interest available for top-up operations
     uint256 public pendingInterest;
 
+    /// @notice Tracks pending principal available for operations
+    uint256 public pendingPrincipal;
+
     /// @notice Controls whether to execute allocation logic in depositETH method
     bool public shouldExecuteAllocation;
     /// @notice Mapping from manager address to boolean indicating if it is registered
@@ -126,6 +129,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     error LiquidityBuffer__NotStakingContract();
     error LiquidityBuffer__NotPositionManagerContract();
     error LiquidityBuffer__ExceedsPendingInterest();
+    error LiquidityBuffer__ExceedsPendingPrincipal();
     // ========================================= INITIALIZATION =========================================
 
     constructor() {
@@ -451,6 +455,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         accounting.allocatedBalance -= amount;
         totalAllocatedBalance -= amount;
+        pendingPrincipal += amount;
         emit ETHWithdrawnFromManager(managerId, amount);
 
         // Call position manager to withdraw AFTER state updates
@@ -467,9 +472,14 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         if (address(stakingContract) == address(0)) {
             revert LiquidityBuffer__ZeroAddress();
         }
+
+        if (amount > pendingPrincipal) {
+            revert LiquidityBuffer__ExceedsPendingPrincipal();
+        }
         
         // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         totalFundsReturned += amount;
+        pendingPrincipal -= amount;
         emit ETHReturnedToStaking(amount);
         
         // Send ETH to trusted staking contract AFTER state updates
@@ -480,6 +490,9 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     function _allocateETHToManager(uint256 managerId, uint256 amount) internal {
         if (pauser.isLiquidityBufferPaused()) {
             revert LiquidityBuffer__Paused();
+        }
+        if (amount > pendingPrincipal) {
+            revert LiquidityBuffer__ExceedsPendingPrincipal();
         }
         
         if (managerId >= positionManagerCount) revert LiquidityBuffer__ManagerNotFound();
@@ -498,6 +511,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         // Update accounting BEFORE external call (Checks-Effects-Interactions pattern)
         accounting.allocatedBalance += amount;
         totalAllocatedBalance += amount;
+        pendingPrincipal -= amount;
         emit ETHAllocatedToManager(managerId, amount);
 
         // deposit to position manager AFTER state updates
@@ -507,6 +521,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
     function _receiveETHFromStaking(uint256 amount) internal {
         totalFundsReceived += amount;
+        pendingPrincipal += amount;
         emit ETHReceivedFromStaking(amount);
     }
 
