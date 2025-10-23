@@ -310,6 +310,7 @@ contract PositionManagerDepositTest is PositionManagerTest {
     function testDepositZeroAmount() public {
         vm.deal(executor, 0);
         vm.prank(executor);
+        vm.expectRevert('Deposit amount cannot be 0');
         positionManager.deposit{value: 0}(0);
         
         // Should not change balances
@@ -516,27 +517,6 @@ contract PositionManagerWithdrawTest is PositionManagerTest {
 // }
 
 contract PositionManagerManagerFunctionsTest is PositionManagerTest {
-    function testSetUserEMode() public {
-        uint8 categoryId = 1;
-        
-        vm.expectEmit(true, true, true, true, address(positionManager));
-        emit SetUserEMode(manager, categoryId);
-        
-        vm.prank(manager);
-        positionManager.setUserEMode(categoryId);
-    }
-    
-    function testSetUserEModeUnauthorized(address vandal) public {
-        vm.assume(vandal != manager);
-        vm.assume(vandal != address(proxyAdmin));
-        vm.assume(vandal != address(admin));
-        
-        vm.expectRevert(missingRoleError(vandal, positionManager.MANAGER_ROLE()));
-        vm.startPrank(vandal);
-        positionManager.setUserEMode(1);
-        vm.stopPrank();
-    }
-    
     function testApproveToken() public {
         address token = address(weth);
         address spender = makeAddr("spender");
@@ -563,15 +543,6 @@ contract PositionManagerManagerFunctionsTest is PositionManagerTest {
         assertEq(weth.allowance(address(positionManager), spender), 0);
     }
     
-    function testSetUserUseReserveAsCollateral() public {
-        address asset = address(weth);
-        bool useAsCollateral = true;
-        
-        vm.prank(manager);
-        positionManager.setUserUseReserveAsCollateral(asset, useAsCollateral);
-        // No revert means success
-    }
-    
     function testSetLiquidityBuffer() public {
         address newLiquidityBuffer = makeAddr("newLiquidityBuffer");
         
@@ -579,16 +550,6 @@ contract PositionManagerManagerFunctionsTest is PositionManagerTest {
         positionManager.setLiquidityBuffer(newLiquidityBuffer);
         
         assertEq(address(positionManager.liquidityBuffer()), newLiquidityBuffer);
-    }
-    
-    function testManagerFunctionsUnauthorized(address vandal) public {
-        vm.assume(vandal != manager);
-        vm.assume(vandal != address(proxyAdmin));
-        vm.assume(vandal != address(admin));
-        
-        vm.expectRevert(missingRoleError(vandal, positionManager.MANAGER_ROLE()));
-        vm.prank(vandal);
-        positionManager.setUserEMode(1);
     }
 }
 
@@ -662,22 +623,6 @@ contract PositionManagerViewFunctionsTest is PositionManagerTest {
         
     //     assertEq(positionManager.getBorrowBalance(), 50 ether);
     // }
-    
-    function testGetCollateralBalance() public {
-        // Initially no collateral
-        assertEq(positionManager.getCollateralBalance(), 0);
-        
-        // After deposit
-        vm.deal(executor, 100 ether);
-        vm.prank(executor);
-        positionManager.deposit{value: 100 ether}(0);
-        
-        assertEq(positionManager.getCollateralBalance(), 100 ether);
-    }
-    
-    function testGetUserEMode() public {
-        assertEq(positionManager.getUserEMode(), 0);
-    }
 }
 
 contract PositionManagerReceiveTest is PositionManagerTest {
@@ -769,10 +714,4 @@ contract PositionManagerFuzzTest is PositionManagerTest {
         
     //     assertEq(pool.debtToken().balanceOf(address(positionManager)), borrowAmount - repayAmount);
     // }
-    
-    function testFuzzSetUserEMode(uint8 categoryId) public {
-        vm.prank(manager);
-        positionManager.setUserEMode(categoryId);
-        // No revert means success
-    }
 }

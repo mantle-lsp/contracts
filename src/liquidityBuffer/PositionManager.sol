@@ -43,15 +43,26 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     // Events
     event Deposit(address indexed caller, uint amount, uint aTokenAmount);
     event Withdraw(address indexed caller, uint amount);
-    event Borrow(address indexed caller, uint amount, uint rateMode);
-    event Repay(address indexed caller, uint amount, uint rateMode);
-    event SetUserEMode(address indexed caller, uint8 categoryId);
+    event SetLiquidityBuffer(address indexed liquidityBuffer);
+    event ApproveToken(address indexed token, address indexed addr, uint256 wad);
+    event RevokeToken(address indexed token, address indexed addr);
+    event EmergencyTokenTransfer(address indexed token, address indexed to, uint256 amount);
+    event EmergencyEtherTransfer(address indexed to, uint256 amount);
 
     constructor() {
         _disableInitializers();
     }
     
     function initialize(Init memory init) external initializer {
+        if (
+            init.admin == address(0) ||
+            init.manager == address(0) ||
+            address(init.liquidityBuffer) == address(0) ||
+            address(init.weth) == address(0) ||
+            address(init.pool) == address(0)
+        ) {
+            revert('Invalid initialize parameters');
+        }
         __AccessControlEnumerable_init();
         
         weth = init.weth;
@@ -70,15 +81,16 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     // IPositionManager Implementation
 
     function deposit(uint16 referralCode) external payable override onlyRole(EXECUTOR_ROLE) {
-        if (msg.value > 0) {
-            // Wrap ETH to WETH
-            weth.deposit{value: msg.value}();
-            
-            // Deposit WETH into pool
-            pool.deposit(address(weth), msg.value, address(this), referralCode);
-            
-            emit Deposit(msg.sender, msg.value, msg.value);
+        if (msg.value == 0) {
+            revert('Deposit amount cannot be 0');
         }
+        // Wrap ETH to WETH
+        weth.deposit{value: msg.value}();
+        
+        // Deposit WETH into pool
+        pool.deposit(address(weth), msg.value, address(this), referralCode);
+        
+        emit Deposit(msg.sender, msg.value, msg.value);
     }
 
     function withdraw(uint256 amount) external override onlyRole(EXECUTOR_ROLE) {
@@ -112,44 +124,21 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
         return aWETH.balanceOf(address(this));
     }
 
-    function setUserEMode(uint8 categoryId) external override onlyRole(MANAGER_ROLE) {
-        // Set user E-mode category
-        pool.setUserEMode(categoryId);
-        
-        emit SetUserEMode(msg.sender, categoryId);
-    }
-    function approveToken(address token, address addr, uint256 wad) external override onlyRole(MANAGER_ROLE) {
+    function approveToken(address token, address addr, uint256 wad) external override onlyRole(MANAGER_ROLE) notZeroAddress(addr) {
         IERC20(token).safeApprove(addr, wad);
+        emit ApproveToken(token, addr, wad);
     }
 
-    function revokeToken(address token, address addr) external override onlyRole(MANAGER_ROLE) {
+    function revokeToken(address token, address addr) external override onlyRole(MANAGER_ROLE) notZeroAddress(addr) {
         IERC20(token).safeApprove(addr, 0);
+        emit RevokeToken(token, addr);
     }
 
-    // Additional helper functions
-
-    function getBorrowBalance() external view returns (uint256) {
-        address debtToken = pool.getReserveVariableDebtToken(address(weth));
-        return IERC20(debtToken).balanceOf(address(this));
-    }
-
-    function getCollateralBalance() external view returns (uint256) {
-        IERC20 aWETH = IERC20(pool.getReserveAToken(address(weth)));
-        return aWETH.balanceOf(address(this));
-    }
-
-    function getUserEMode() external view returns (uint256) {
-        return pool.getUserEMode(address(this));
-    }
-
-    function setUserUseReserveAsCollateral(address asset, bool useAsCollateral) external onlyRole(MANAGER_ROLE) {
-        pool.setUserUseReserveAsCollateral(asset, useAsCollateral);
-    }
-
-    function setLiquidityBuffer(address _liquidityBuffer) external onlyRole(MANAGER_ROLE) {
+    function setLiquidityBuffer(address _liquidityBuffer) external onlyRole(MANAGER_ROLE) notZeroAddress(_liquidityBuffer) {
         _revokeRole(EXECUTOR_ROLE, address(liquidityBuffer));
         _grantRole(EXECUTOR_ROLE, _liquidityBuffer);
         liquidityBuffer = ILiquidityBuffer(_liquidityBuffer);
+        emit SetLiquidityBuffer(_liquidityBuffer);
     }
 
     /**
@@ -159,8 +148,9 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     * @param to recipient of the transfer
     * @param amount amount to send
     */
-    function emergencyTokenTransfer(address token, address to, uint256 amount) external onlyRole(EMERGENCY_ROLE) {
+    function emergencyTokenTransfer(address token, address to, uint256 amount) external onlyRole(EMERGENCY_ROLE) notZeroAddress(to) {
         IERC20(token).safeTransfer(to, amount);
+        emit EmergencyTokenTransfer(token, to, amount);
     }
 
     /**
@@ -171,6 +161,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     */
     function emergencyEtherTransfer(address to, uint256 amount) external onlyRole(EMERGENCY_ROLE) {
         _safeTransferETH(to, amount);
+        emit EmergencyEtherTransfer(to, amount);
     }
 
     /**
@@ -195,5 +186,14 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     */
     fallback() external payable {
         revert('Fallback not allowed');
+    }
+
+    /// @notice Ensures that the given address is not the zero address.
+    /// @param addr The address to check.
+    modifier notZeroAddress(address addr) {
+        if (addr == address(0)) {
+            revert('Not a zero address');
+        }
+        _;
     }
 }

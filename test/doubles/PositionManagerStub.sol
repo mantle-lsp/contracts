@@ -43,9 +43,6 @@ contract PositionManagerStub is IPositionManager {
         payable(msg.sender).transfer(amount);
     }
 
-    function setUserEMode(uint8) external {
-    }
-
     function getUnderlyingBalance() external view returns (uint256) {
         return underlyingBalance;
     }

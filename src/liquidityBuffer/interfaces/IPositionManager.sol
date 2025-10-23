@@ -10,8 +10,6 @@ interface IPositionManager {
 
     function withdraw(uint256 amount) external;
 
-    function setUserEMode(uint8 categoryId) external;
-
     function getUnderlyingBalance() external view returns (uint256);
 
     function approveToken(address token, address addr, uint256 wad) external;

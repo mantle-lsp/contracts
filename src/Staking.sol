@@ -307,7 +307,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         maximumMETHSupply = 1024 ether;
     }
         
-    function initializeV2(ILiquidityBuffer lb) public reinitializer(2) {
+    function initializeV2(ILiquidityBuffer lb) public reinitializer(2) notZeroAddress(address(lb)) {
         liquidityBuffer = lb;
     }
 

@@ -137,6 +137,18 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function initialize(Init memory init) external initializer {
+        if (
+            init.admin == address(0) ||
+            init.liquidityManager == address(0) ||
+            init.positionManager == address(0) ||
+            init.interestTopUp == address(0) ||
+            init.drawdownManager == address(0) ||
+            init.feesReceiver == address(0) ||
+            address(init.staking) == address(0) ||
+            address(init.pauser) == address(0)
+        ) {
+            revert LiquidityBuffer__ZeroAddress();
+        }
 
         __AccessControlEnumerable_init();
 
@@ -203,7 +215,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     function addPositionManager(
         address managerAddress,
         uint256 allocationCap
-    ) external onlyRole(POSITION_MANAGER_ROLE) returns (uint256 managerId) {
+    ) external onlyRole(POSITION_MANAGER_ROLE) notZeroAddress(managerAddress) returns (uint256 managerId) {
         if (isRegisteredManager[managerAddress]) revert LiquidityBuffer__ManagerAlreadyRegistered();
         managerId = positionManagerCount;
         positionManagerCount++;
@@ -243,7 +255,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         }
         
         // Update total allocation capacity
-        totalAllocationCapacity = totalAllocationCapacity - config.allocationCap + newAllocationCap;
+        totalAllocationCapacity = totalAllocationCapacity + newAllocationCap - config.allocationCap;
         
         config.allocationCap = newAllocationCap;
         config.isActive = isActive;
@@ -252,21 +264,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
             this.updatePositionManager.selector,
             "updatePositionManager(uint256,uint256,bool)",
             abi.encode(managerId, newAllocationCap, isActive)
-        );
-    }
-
-    function togglePositionManagerStatus(uint256 managerId) external onlyRole(POSITION_MANAGER_ROLE) {
-        if (managerId >= positionManagerCount) {
-            revert LiquidityBuffer__ManagerNotFound();
-        }
-
-        PositionManagerConfig storage config = positionManagerConfigs[managerId];
-        config.isActive = !config.isActive;
-
-        emit ProtocolConfigChanged(
-            this.togglePositionManagerStatus.selector,
-            "togglePositionManagerStatus(uint256)",
-            abi.encode(managerId)
         );
     }
 
@@ -325,13 +322,34 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     /// @notice Sets whether to execute allocation logic in depositETH method.
     /// @param executeAllocation Whether to execute allocation logic.
     function setShouldExecuteAllocation(bool executeAllocation) external onlyRole(POSITION_MANAGER_ROLE) {
+        if (shouldExecuteAllocation == executeAllocation) {
+            revert LiquidityBuffer__InvalidConfiguration();
+        }
         shouldExecuteAllocation = executeAllocation;
         emit ProtocolConfigChanged(this.setShouldExecuteAllocation.selector, "setShouldExecuteAllocation(bool)", abi.encode(executeAllocation));
     }
 
+    function setPositionManagerStatus(uint256 managerId, bool isActive) external onlyRole(POSITION_MANAGER_ROLE) {
+        if (managerId >= positionManagerCount) {
+            revert LiquidityBuffer__ManagerNotFound();
+        }
+
+        PositionManagerConfig storage config = positionManagerConfigs[managerId];
+        if (config.isActive == isActive) {
+            revert LiquidityBuffer__InvalidConfiguration();
+        }
+        config.isActive = isActive;
+        emit ProtocolConfigChanged(
+            this.setPositionManagerStatus.selector,
+            "setPositionManagerStatus(uint256,bool)",
+            abi.encode(managerId, isActive)
+        );
+
+    }
+
     // ========================================= LIQUIDITY MANAGEMENT =========================================
 
-    function depositETH() external payable onlyRole(LIQUIDITY_MANAGER_ROLE) {
+    function depositETH() external payable onlyStakingContract {
         if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _receiveETHFromStaking(msg.value);
         if (shouldExecuteAllocation) {
@@ -340,23 +358,28 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function withdrawAndReturn(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _withdrawETHFromManager(managerId, amount);
         _returnETHToStaking(amount);
     }
 
     function allocateETHToManager(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _allocateETHToManager(managerId, amount);
     }
 
     function withdrawETHFromManager(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _withdrawETHFromManager(managerId, amount);
     }
 
     function returnETHToStaking(uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _returnETHToStaking(amount);
     }
 
     function receiveETHFromPositionManager() external payable onlyPositionManagerContract {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         // This function receives ETH from position managers
         // The ETH is already in the contract balance, no additional processing needed
     }
@@ -392,9 +415,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     // ========================================= INTERNAL FUNCTIONS =========================================
 
     function _topUpInterestToStakingAndCollectFees(uint256 amount) internal {
-        if (pauser.isLiquidityBufferPaused()) {
-            revert LiquidityBuffer__Paused();
-        }
         if (amount > pendingInterest) {
             revert LiquidityBuffer__ExceedsPendingInterest();
         }
@@ -413,9 +433,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
     
     function _claimInterestFromManager(uint256 managerId) internal returns (uint256) {
-        if (pauser.isLiquidityBufferPaused()) {
-            revert LiquidityBuffer__Paused();
-        }
         // Get interest amount
         uint256 interestAmount = getInterestAmount(managerId);
         
@@ -439,9 +456,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function _withdrawETHFromManager(uint256 managerId, uint256 amount) internal {
-        if (pauser.isLiquidityBufferPaused()) {
-            revert LiquidityBuffer__Paused();
-        }
         if (managerId >= positionManagerCount) revert LiquidityBuffer__ManagerNotFound();
         PositionManagerConfig memory config = positionManagerConfigs[managerId];
         if (!config.isActive) revert LiquidityBuffer__ManagerInactive();
@@ -464,10 +478,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function _returnETHToStaking(uint256 amount) internal {
-        if (pauser.isLiquidityBufferPaused()) {
-            revert LiquidityBuffer__Paused();
-        }
-        
         // Validate staking contract is set and not zero address
         if (address(stakingContract) == address(0)) {
             revert LiquidityBuffer__ZeroAddress();
@@ -488,9 +498,6 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function _allocateETHToManager(uint256 managerId, uint256 amount) internal {
-        if (pauser.isLiquidityBufferPaused()) {
-            revert LiquidityBuffer__Paused();
-        }
         if (amount > pendingPrincipal) {
             revert LiquidityBuffer__ExceedsPendingPrincipal();
         }
