@@ -5,5 +5,6 @@ openzeppelin/=lib/openzeppelin-contracts/contracts/
 openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
 openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
+openzeppelin-contracts-v5/=lib/openzeppelin-contracts-v5/
 openzeppelin/=lib/openzeppelin-contracts/contracts/
 aave-v3/=lib/aave-v3-origin/src/contracts/

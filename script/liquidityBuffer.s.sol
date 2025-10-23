@@ -15,10 +15,8 @@ import {Deployments} from "./helpers/Proxy.sol";
 import {
     ITransparentUpgradeableProxy,
     TransparentUpgradeableProxy
-} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
+} from "./helpers/TransparentUpgradeableProxy.sol";
 import {TimelockController} from "openzeppelin/governance/TimelockController.sol";
-import {upgradeToAndCall} from "./helpers/Proxy.sol";
-
 struct DeploymentParams {
     address admin;
     address liquidityManager;
@@ -27,12 +25,12 @@ struct DeploymentParams {
     address drawdownManager;
     address upgrader;
     address manager;
-    address executor;
+    // address executor;
     address emergency;
     address weth;
     address pool;
-    address liquidityBuffer;
-    address proxyAdmin;
+    // address liquidityBuffer;
+    // address proxyAdmin;
     address pauserContract;
     address stakingContract;
     address feeReceiver;
@@ -40,18 +38,23 @@ struct DeploymentParams {
 
 contract EmptyContract {}
 
+struct LBDeployments {
+    LiquidityBuffer liquidityBuffer;
+    PositionManager positionManager;
+}
+
 contract LiquidityBufferDeploy is Base {
     function _readDeploymentParamsFromEnv() internal view returns (DeploymentParams memory) {
         return DeploymentParams({
             admin: vm.envAddress("ADMIN_ADDRESS"),
             upgrader: vm.envAddress("UPGRADER_ADDRESS"),
             manager: vm.envAddress("MANAGER_ADDRESS"),
-            executor: vm.envAddress("EXECUTOR_ADDRESS"),
+            // executor: vm.envAddress("EXECUTOR_ADDRESS"),
             emergency: vm.envAddress("EMERGENCY_ADDRESS"),
             weth: vm.envAddress("WETH_ADDRESS"),
             pool: vm.envAddress("POOL_CONTRACT_ADDRESS"),
-            liquidityBuffer: vm.envAddress("LIQUIDITY_BUFFER_CONTRACT_ADDRESS"),
-            proxyAdmin: vm.envAddress("PROXY_ADMIN_ADDRESS"),
+            // liquidityBuffer: vm.envAddress("LIQUIDITY_BUFFER_CONTRACT_ADDRESS"),
+            // proxyAdmin: vm.envAddress("PROXY_ADMIN_ADDRESS"),
             stakingContract: vm.envAddress("STAKING_CONTRACT_ADDRESS"),
             pauserContract: vm.envAddress("PAUSER_CONTRACT_ADDRESS"),
             feeReceiver: vm.envAddress("FEES_RECEIVER_ADDRESS"),
@@ -63,16 +66,23 @@ contract LiquidityBufferDeploy is Base {
     }
 
     function deploy() public {
+        address deployer = msg.sender;
+
         DeploymentParams memory params = _readDeploymentParamsFromEnv();
 
         vm.startBroadcast();
-        EmptyContract empty = new EmptyContract();
-        PositionManager positionManagerProxy = PositionManager(payable(newProxy(empty, params.proxyAdmin)));
-        LiquidityBuffer liquidityBufferProxy = LiquidityBuffer(payable(newProxy(empty, params.proxyAdmin)));
+        EmptyContract empty = EmptyContract(0x8B6c86D2C0cc65CB4138CC01C97EC4E1D5712478);
 
-        LiquidityBuffer liquidityBufferInstance = initLiquidityBuffer(
-            TimelockController(payable(params.proxyAdmin)),
-            ITransparentUpgradeableProxy(address(liquidityBufferProxy)),
+        LBDeployments memory ds = LBDeployments({
+            liquidityBuffer: LiquidityBuffer(payable(address(newProxy(empty, deployer)))),
+            positionManager: PositionManager(payable(address(newProxy(empty, deployer))))
+        });
+        
+        // PositionManager positionManagerProxy = PositionManager(payable(newProxy(empty, params.proxyAdmin)));
+        // LiquidityBuffer liquidityBufferProxy = LiquidityBuffer(payable(newProxy(empty, params.proxyAdmin)));
+        
+        ds.liquidityBuffer = initLiquidityBuffer(
+            ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
             LiquidityBuffer.Init({
                 admin: params.admin,
                 liquidityManager: params.liquidityManager,
@@ -84,32 +94,24 @@ contract LiquidityBufferDeploy is Base {
                 pauser: Pauser(payable(address(params.pauserContract)))
             })
         );
-        PositionManager positionManagerInstance = initPositionManager(
-            TimelockController(payable(params.proxyAdmin)),
-            ITransparentUpgradeableProxy(address(positionManagerProxy)),
+        ds.positionManager = initPositionManager(
+            ITransparentUpgradeableProxy(address(ds.positionManager)),
             PositionManager.Init({
                 admin: params.admin,
                 manager: params.manager,
-                liquidityBuffer: ILiquidityBuffer(params.liquidityBuffer),
+                liquidityBuffer: ILiquidityBuffer(address(ds.liquidityBuffer)),
                 weth: IWETH(params.weth),
                 pool: IPool(params.pool)
             })
         );
+        if (deployer != params.upgrader) {
+            TransparentUpgradeableProxy(payable(address(ds.liquidityBuffer))).changeAdmin(params.upgrader);
+            TransparentUpgradeableProxy(payable(address(ds.positionManager))).changeAdmin(params.upgrader);
+        }
         vm.stopBroadcast();
         console.log("PositionManager Deployment:");
-        console.log("LiquidityBuffer: %s", address(liquidityBufferInstance));
-        console.log("PositionManager: %s", address(positionManagerInstance));
-    }
-    function _setupLiquidityBuffer(
-        LiquidityBuffer liquidityBuffer,
-        address admin,
-        address manager,
-        address executor,
-        address emergency
-    ) internal {
-        // Grant roles to the appropriate addresses
-        liquidityBuffer.grantRole(liquidityBuffer.DEFAULT_ADMIN_ROLE(), admin);
-        liquidityBuffer.grantRole(liquidityBuffer.LIQUIDITY_MANAGER_ROLE(), manager);
+        console.log("LiquidityBuffer: %s", address(ds.liquidityBuffer));
+        console.log("PositionManager: %s", address(ds.positionManager));
     }
 
     function _setupRoles(
@@ -142,20 +144,28 @@ function newProxy(EmptyContract empty, address admin) returns (TransparentUpgrad
     return new TransparentUpgradeableProxy(address(empty), admin, "");
 }
 
+function upgradeToAndCall(
+    ITransparentUpgradeableProxy proxy,
+    address implementation,
+    uint256 value,
+    bytes memory data
+) {
+    proxy.upgradeToAndCall{value: value}(implementation, data);
+}
 
-function initLiquidityBuffer(TimelockController proxyAdmin, ITransparentUpgradeableProxy proxy, LiquidityBuffer.Init memory init)
+function initLiquidityBuffer(ITransparentUpgradeableProxy proxy, LiquidityBuffer.Init memory init)
     returns (LiquidityBuffer)
 {
     LiquidityBuffer impl = new LiquidityBuffer();
-    upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(LiquidityBuffer.initialize, init));
+    upgradeToAndCall(proxy, address(impl), 0, abi.encodeCall(LiquidityBuffer.initialize, init));
     return LiquidityBuffer(payable(address(proxy)));
 }
 
 
-function initPositionManager(TimelockController proxyAdmin, ITransparentUpgradeableProxy proxy, PositionManager.Init memory init)
-returns (PositionManager)
+function initPositionManager(ITransparentUpgradeableProxy proxy, PositionManager.Init memory init)
+    returns (PositionManager)
 {
     PositionManager impl = new PositionManager();
-    upgradeToAndCall(proxyAdmin, proxy, address(impl), abi.encodeCall(PositionManager.initialize, init));
+    upgradeToAndCall(proxy, address(impl), 0, abi.encodeCall(PositionManager.initialize, init));
     return PositionManager(payable(address(proxy)));
 }

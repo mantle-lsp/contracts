@@ -11,3 +11,7 @@
 [submodule "lib/aave-v3-origin"]
 	path = lib/aave-v3-origin
 	url = https://github.com/aave-dao/aave-v3-origin
+[submodule "lib/openzeppelin-contracts-v5"]
+	path = lib/openzeppelin-contracts-v5
+	url = https://github.com/openzeppelin/openzeppelin-contracts.git
+	branch = release-v5.0

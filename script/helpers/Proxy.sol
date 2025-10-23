@@ -40,7 +40,7 @@ struct Deployments {
     ReturnsReceiver executionLayerReceiver;
     Staking staking;
     UnstakeRequestsManager unstakeRequestsManager;
-    LiquidityBuffer liquidityBuffer;
+    // LiquidityBuffer liquidityBuffer;
 }
 
 /// @notice Deployment paramaters for the protocol contract
@@ -109,8 +109,8 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
         staking: Staking(payable(newProxy(empty, proxyAdmin))),
         consensusLayerReceiver: ReturnsReceiver(payable(newProxy(empty, proxyAdmin))),
         executionLayerReceiver: ReturnsReceiver(payable(newProxy(empty, proxyAdmin))),
-        aggregator: ReturnsAggregator(payable(newProxy(empty, proxyAdmin))),
-        liquidityBuffer: LiquidityBuffer(payable(newProxy(empty, proxyAdmin)))
+        aggregator: ReturnsAggregator(payable(newProxy(empty, proxyAdmin)))
+        // liquidityBuffer: LiquidityBuffer(payable(newProxy(empty, proxyAdmin)))
     });
 
     // Upgrade and iniitialize contracts
@@ -158,21 +158,21 @@ function deployAll(DeploymentParams memory params, address deployer) returns (De
             unstakeRequestsManager: ds.unstakeRequestsManager
         })
     );
-    ds.liquidityBuffer = initLiquidityBuffer(
-        proxyAdmin,
-        ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
-        LiquidityBuffer.Init({
-            admin: params.admin,
-            liquidityManager: params.admin,
-            positionManager: params.admin,
-            interestTopUp: params.admin,
-            drawdownManager: params.admin,
-            feesReceiver: params.feesReceiver,
-            staking: Staking(payable(address(ds.staking))),
-            pauser: ds.pauser
-        })
-    );
-    initStakingV2(proxyAdmin, ITransparentUpgradeableProxy(address(ds.staking)), ds.liquidityBuffer);
+    // ds.liquidityBuffer = initLiquidityBuffer(
+    //     proxyAdmin,
+    //     ITransparentUpgradeableProxy(address(ds.liquidityBuffer)),
+    //     LiquidityBuffer.Init({
+    //         admin: params.admin,
+    //         liquidityManager: params.admin,
+    //         positionManager: params.admin,
+    //         interestTopUp: params.admin,
+    //         drawdownManager: params.admin,
+    //         feesReceiver: params.feesReceiver,
+    //         staking: Staking(payable(address(ds.staking))),
+    //         pauser: ds.pauser
+    //     })
+    // );
+    // initStakingV2(proxyAdmin, ITransparentUpgradeableProxy(address(ds.staking)), ds.liquidityBuffer);
 
     ds.aggregator = initReturnsAggregator(
         proxyAdmin,

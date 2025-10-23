@@ -17,7 +17,7 @@ tasks:
     dotenv: ["{{.ENV_FILE}}"]
     cmds:
       - mkdir -p ./deployments
-      - forge script script/positionManager.s.sol:PositionManagerDeploy -vv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+      - forge script script/positionManager.s.sol:PositionManagerDeploy -vv --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
     generates:
       - ./deployments/$CHAIN_ID
 
@@ -26,7 +26,7 @@ tasks:
     dotenv: ["{{.ENV_FILE}}"]
     cmds:
       - mkdir -p ./deployments
-      - forge script script/liquidityBuffer.s.sol:LiquidityBufferDeploy -vv --fork-url $FOUNDRY_RPC_URL --private-key $FOUNDRY_PRIVATE_KEY --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+      - forge script script/liquidityBuffer.s.sol:LiquidityBufferDeploy -vv --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
     generates:
       - ./deployments/$CHAIN_ID
 
@@ -69,6 +69,20 @@ tasks:
         vars:
           ENV_FILE: ".mainnet.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  "mainnet:deployPositionManager":
+    cmds:
+      - task: _deployPositionManager
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+  "mainnet:deployLiquidityBuffer":
+    cmds:
+      - task: _deployLiquidityBuffer
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
   _addInitiator:
     internal: true
     dotenv: ["{{.ENV_FILE}}"]
@@ -311,6 +325,45 @@ tasks:
           EXTRA_ARGS: "{{.CLI_ARGS}}"
           CONTRACT_NAME: "{{.name}}"
           EXECUTE: "{{.execute | default false}}"
+
+  _upgradeStaking:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/upgradeStaking.s.sol:UpgradeStaking -v --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "upgrade(address)" {{.LIQUIDITY_BUFFER_ADDRESS}} {{.EXTRA_ARGS}}
+
+  "devnet:upgradeStaking":
+    cmds:
+      - task: _upgradeStaking
+        vars:
+          ENV_FILE: ".devnet.env"
+          LIQUIDITY_BUFFER_ADDRESS: "{{.liquidityBufferAddress}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  "mainnet:upgradeStaking":
+    desc: "Upgrades Staking contract on mainnet with new liquidity buffer"
+    cmds:
+      - task: _upgradeStaking
+        vars:
+          ENV_FILE: ".mainnet.env"
+          LIQUIDITY_BUFFER_ADDRESS: "{{.liquidityBufferAddress}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _upgradePauser:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/upgrade.s.sol:Upgrade -v --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "upgrade(string memory, bool)" "Pauser" false  {{.EXTRA_ARGS}}
+
+  "mainnet:upgradePauser":
+    desc: "Upgrades Pauser contract on mainnet"
+    cmds:
+      - task: _upgradePauser
+        vars:
+          ENV_FILE: ".mainnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
 
   _transferAllRoles:
     internal: true
