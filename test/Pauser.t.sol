@@ -105,6 +105,22 @@ contract PauserSetterTest is PauserTest {
         pauser.setIsAllocateETHPaused(false);
         assertFalse(pauser.isAllocateETHPaused());
     }
+
+    function testSetIsLiquidityBufferPaused() public {
+        assertFalse(pauser.isLiquidityBufferPaused());
+
+        vm.expectEmit();
+        emit FlagUpdated(pauser.isLiquidityBufferPaused.selector, true, "isLiquidityBufferPaused");
+        vm.prank(pauserAddress);
+        pauser.setIsLiquidityBufferPaused(true);
+        assertTrue(pauser.isLiquidityBufferPaused());
+
+        vm.expectEmit();
+        emit FlagUpdated(pauser.isLiquidityBufferPaused.selector, false, "isLiquidityBufferPaused");
+        vm.prank(unpauserAddress);
+        pauser.setIsLiquidityBufferPaused(false);
+        assertFalse(pauser.isLiquidityBufferPaused());
+    }
 }
 
 contract PauserVandalSetterTest is PauserTest {
@@ -132,6 +148,10 @@ contract PauserVandalSetterTest is PauserTest {
         vm.expectRevert(missingRoleError(vandal, pauserRole));
         vm.prank(vandal);
         pauser.setIsAllocateETHPaused(true);
+
+        vm.expectRevert(missingRoleError(vandal, pauserRole));
+        vm.prank(vandal);
+        pauser.setIsLiquidityBufferPaused(true);
 
         vm.expectRevert(abi.encodeWithSelector(Pauser.PauserRoleOrOracleRequired.selector, vandal));
         vm.prank(vandal);
@@ -163,6 +183,10 @@ contract PauserVandalSetterTest is PauserTest {
 
         vm.expectRevert(missingRoleError(vandal, unpauserRole));
         vm.prank(vandal);
+        pauser.setIsLiquidityBufferPaused(false);
+
+        vm.expectRevert(missingRoleError(vandal, unpauserRole));
+        vm.prank(vandal);
         pauser.unpauseAll();
     }
 }
@@ -179,6 +203,8 @@ contract AllTest is PauserTest {
         emit FlagUpdated(pauser.isSubmitOracleRecordsPaused.selector, true, "isSubmitOracleRecordsPaused");
         vm.expectEmit();
         emit FlagUpdated(pauser.isAllocateETHPaused.selector, true, "isAllocateETHPaused");
+        vm.expectEmit();
+        emit FlagUpdated(pauser.isLiquidityBufferPaused.selector, true, "isLiquidityBufferPaused");
 
         vm.prank(caller);
         pauser.pauseAll();
@@ -188,6 +214,7 @@ contract AllTest is PauserTest {
         assertTrue(pauser.isInitiateValidatorsPaused());
         assertTrue(pauser.isSubmitOracleRecordsPaused());
         assertTrue(pauser.isAllocateETHPaused());
+        assertTrue(pauser.isLiquidityBufferPaused());
     }
 
     function testPauseAllPauser() public {
@@ -209,6 +236,8 @@ contract AllTest is PauserTest {
         emit FlagUpdated(pauser.isSubmitOracleRecordsPaused.selector, false, "isSubmitOracleRecordsPaused");
         vm.expectEmit();
         emit FlagUpdated(pauser.isAllocateETHPaused.selector, false, "isAllocateETHPaused");
+        vm.expectEmit();
+        emit FlagUpdated(pauser.isLiquidityBufferPaused.selector, false, "isLiquidityBufferPaused");
 
         vm.prank(unpauserAddress);
         pauser.unpauseAll();
@@ -218,5 +247,6 @@ contract AllTest is PauserTest {
         assertFalse(pauser.isInitiateValidatorsPaused());
         assertFalse(pauser.isSubmitOracleRecordsPaused());
         assertFalse(pauser.isAllocateETHPaused());
+        assertFalse(pauser.isLiquidityBufferPaused());
     }
 }

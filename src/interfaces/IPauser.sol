@@ -16,6 +16,9 @@ interface IPauserRead {
 
     /// @notice Flag indicating if allocate ETH is paused.
     function isAllocateETHPaused() external view returns (bool);
+
+    /// @notice Flag indicating if liquidity buffer is paused.
+    function isLiquidityBufferPaused() external view returns (bool);
 }
 
 interface IPauserWrite {

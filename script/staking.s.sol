@@ -55,7 +55,7 @@ contract SteerStaking is Base, DepositsParser {
 
         uint256 stakeAmount = uint256(numValidators) * 32 ether;
         depls.staking.stake{value: stakeAmount}({minMETHAmount: 0 ether});
-        depls.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: stakeAmount});
+        depls.staking.allocateETH({allocateToUnstakeRequestsManager: 0, allocateToDeposits: stakeAmount, allocateToLiquidityBuffer: 0});
         Staking.ValidatorParams[] memory params = _getValidatorParams(startingIdx, numValidators, operatorID);
         depls.staking.initiateValidatorsWithDeposits(params, depositContract.get_deposit_root());
 
@@ -79,7 +79,8 @@ contract SteerStaking is Base, DepositsParser {
         vm.startBroadcast(allocator);
         depls.staking.allocateETH({
             allocateToUnstakeRequestsManager: 0,
-            allocateToDeposits: uint256(allocationAmountInETH) * 1 ether
+            allocateToDeposits: uint256(allocationAmountInETH) * 1 ether,
+            allocateToLiquidityBuffer: 0
         });
         vm.stopBroadcast();
     }
