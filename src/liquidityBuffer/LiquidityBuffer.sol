@@ -390,6 +390,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     // ========================================= INTEREST MANAGEMENT =========================================
 
     function claimInterestFromManager(uint256 managerId, uint256 minAmount) external onlyRole(INTEREST_TOPUP_ROLE) returns (uint256) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         uint256 amount = _claimInterestFromManager(managerId);
         if (amount < minAmount) {
             revert LiquidityBuffer__InsufficientBalance();
@@ -398,6 +399,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function topUpInterestToStaking(uint256 amount) external onlyRole(INTEREST_TOPUP_ROLE) returns (uint256) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         if (address(this).balance < amount) {
             revert LiquidityBuffer__InsufficientBalance();
         }
@@ -406,6 +408,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function claimInterestAndTopUp(uint256 managerId, uint256 minAmount) external onlyRole(INTEREST_TOPUP_ROLE) returns (uint256) {
+        if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         uint256 amount = _claimInterestFromManager(managerId);
         if (amount < minAmount) {
             revert LiquidityBuffer__InsufficientBalance();

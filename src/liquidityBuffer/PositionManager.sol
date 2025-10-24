@@ -159,7 +159,7 @@ contract PositionManager is Initializable, AccessControlEnumerableUpgradeable, I
     * @param to recipient of the transfer
     * @param amount amount to send
     */
-    function emergencyEtherTransfer(address to, uint256 amount) external onlyRole(EMERGENCY_ROLE) {
+    function emergencyEtherTransfer(address to, uint256 amount) external onlyRole(EMERGENCY_ROLE) notZeroAddress(to) {
         _safeTransferETH(to, amount);
         emit EmergencyEtherTransfer(to, amount);
     }
