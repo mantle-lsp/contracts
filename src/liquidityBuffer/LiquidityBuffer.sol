@@ -268,6 +268,9 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     }
 
     function setCumulativeDrawdown(uint256 drawdownAmount) external onlyRole(DRAWDOWN_MANAGER_ROLE) {        
+        if(drawdownAmount > totalAllocationCapacity) {
+            revert LiquidityBuffer__ExceedsAllocationCap();
+        }
         cumulativeDrawdown = drawdownAmount;
         
         emit ProtocolConfigChanged(

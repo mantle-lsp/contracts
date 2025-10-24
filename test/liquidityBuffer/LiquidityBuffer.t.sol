@@ -341,7 +341,14 @@ contract LiquidityBufferFeeManagementTest is LiquidityBufferTest {
 }
 
 contract LiquidityBufferDrawdownTest is LiquidityBufferTest {
+    function _addPositionManager() internal returns (uint256, PositionManagerStub) {
+        PositionManagerStub manager = new PositionManagerStub(0, address(liquidityBuffer));
+        vm.prank(positionManagerRole);
+        uint256 managerId = liquidityBuffer.addPositionManager(address(manager), 2000 ether);
+        return (managerId, manager);
+    }
     function testSetCumulativeDrawdown() public {
+        _addPositionManager();
         uint256 drawdownAmount = 100 ether;
 
         vm.expectEmit(true, true, true, true, address(liquidityBuffer));
@@ -358,6 +365,7 @@ contract LiquidityBufferDrawdownTest is LiquidityBufferTest {
     }
 
     function testSetCumulativeDrawdownMultiple() public {
+        _addPositionManager();
         uint256 drawdown1 = 50 ether;
         uint256 drawdown2 = 75 ether;
 
@@ -377,6 +385,12 @@ contract LiquidityBufferDrawdownTest is LiquidityBufferTest {
         vm.startPrank(vandal);
         liquidityBuffer.setCumulativeDrawdown(100 ether);
         vm.stopPrank();
+    }
+    function testSetCumulativeDrawdownExceedsAllocationCap() public {
+        _addPositionManager();
+        vm.prank(drawdownManagerRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__ExceedsAllocationCap.selector);
+        liquidityBuffer.setCumulativeDrawdown(2001 ether);
     }
 }
 
@@ -1182,8 +1196,7 @@ contract LiquidityBufferFuzzTest is LiquidityBufferTest {
     }
 
     function testFuzzSetCumulativeDrawdown(uint256 drawdownAmount) public {
-        vm.assume(drawdownAmount <= type(uint128).max); // Prevent overflow
-
+        vm.assume(drawdownAmount <= liquidityBuffer.totalAllocationCapacity());
         vm.prank(drawdownManagerRole);
         liquidityBuffer.setCumulativeDrawdown(drawdownAmount);
 
