@@ -15,8 +15,13 @@ import {Deployments} from "./helpers/Proxy.sol";
 import {
     ITransparentUpgradeableProxy,
     TransparentUpgradeableProxy
-} from "./helpers/TransparentUpgradeableProxy.sol";
+} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TimelockController} from "openzeppelin/governance/TimelockController.sol";
+
+import {
+    ITransparentUpgradeableProxy as CustomITransparentUpgradeableProxy,
+    TransparentUpgradeableProxy as CustomTransparentUpgradeableProxy
+} from "./helpers/TransparentUpgradeableProxy.sol";
 struct DeploymentParams {
     address admin;
     address liquidityManager;
@@ -42,6 +47,7 @@ struct LBDeployments {
     LiquidityBuffer liquidityBuffer;
     PositionManager positionManager;
 }
+
 
 contract LiquidityBufferDeploy is Base {
     function _readDeploymentParamsFromEnv() internal view returns (DeploymentParams memory) {
@@ -105,13 +111,43 @@ contract LiquidityBufferDeploy is Base {
             })
         );
         if (deployer != params.upgrader) {
-            TransparentUpgradeableProxy(payable(address(ds.liquidityBuffer))).changeAdmin(params.upgrader);
-            TransparentUpgradeableProxy(payable(address(ds.positionManager))).changeAdmin(params.upgrader);
+            ITransparentUpgradeableProxy(payable(address(ds.liquidityBuffer))).changeAdmin(params.upgrader);
+            ITransparentUpgradeableProxy(payable(address(ds.positionManager))).changeAdmin(params.upgrader);
         }
         vm.stopBroadcast();
         console.log("PositionManager Deployment:");
         console.log("LiquidityBuffer: %s", address(ds.liquidityBuffer));
         console.log("PositionManager: %s", address(ds.positionManager));
+    }
+
+    function deployPositionManager(address liquidityBufferAddress) public returns (PositionManager) {
+        address deployer = msg.sender;
+
+        DeploymentParams memory params = _readDeploymentParamsFromEnv();
+
+        vm.startBroadcast();
+        EmptyContract empty = EmptyContract(0x8B6c86D2C0cc65CB4138CC01C97EC4E1D5712478);
+        PositionManager positionManager = PositionManager(payable(address(newProxy(empty, deployer))));
+        positionManager = initPositionManager(
+            ITransparentUpgradeableProxy(address(positionManager)),
+            PositionManager.Init({
+                admin: params.admin,
+                manager: params.manager,
+                liquidityBuffer: ILiquidityBuffer(liquidityBufferAddress),
+                weth: IWETH(params.weth),
+                pool: IPool(params.pool)
+            })
+        );
+        ITransparentUpgradeableProxy positionManagerProxy = ITransparentUpgradeableProxy(payable(address(positionManager)));
+        console.log("PositionManager implementation: %s", positionManagerProxy.implementation());
+        console.log("before changeAdmin, PositionManager admin: %s", positionManagerProxy.admin());
+        if (deployer != params.upgrader) {
+            positionManagerProxy.changeAdmin(params.upgrader);
+        }
+        vm.stopBroadcast();
+        console.log("PositionManager Deployment:");
+        console.log("PositionManager: %s", address(positionManager));
+        return positionManager;
     }
 
     function _setupRoles(

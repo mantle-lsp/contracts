@@ -14,10 +14,16 @@ import {PositionManager} from "../src/liquidityBuffer/PositionManager.sol";
 import {PositionManager as OldPositionManagerNewImpl} from "../src/liquidityBuffer/OldPositionManagerNewImpl.sol";
 import {initPositionManager,newProxy,EmptyContract} from "./liquidityBuffer.s.sol";
 import {
-    ITransparentUpgradeableProxy,
-    TransparentUpgradeableProxy
+    ITransparentUpgradeableProxy as CustomITransparentUpgradeableProxy,
+    TransparentUpgradeableProxy as CustomTransparentUpgradeableProxy
 } from "./helpers/TransparentUpgradeableProxy.sol";
 import {console2} from "forge-std/console2.sol";
+import {scheduleAndExecute} from "./helpers/Proxy.sol";
+
+import {
+    ITransparentUpgradeableProxy,
+    TransparentUpgradeableProxy
+} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 /**
  * @title MainnetIntegrationTest
  * @notice test mainnet integration
@@ -98,7 +104,7 @@ contract MainnetIntegrationTest is Script {
       console2.log("-----4. Upgrade Old PositionManager add sendETHToLiquidityBuffer and receiveETHFromManager method------");
       OldPositionManagerNewImpl oldPositionManagerNewImpl = new OldPositionManagerNewImpl();
       vm.startPrank(mantle_sec_msig);
-      bytes memory callData = abi.encodeCall(ITransparentUpgradeableProxy.upgradeToAndCall, (address(oldPositionManagerNewImpl), ""));
+      bytes memory callData = abi.encodeCall(CustomITransparentUpgradeableProxy.upgradeToAndCall, (address(oldPositionManagerNewImpl), ""));
       _scheduleAndExecute(timelockController, address(oldPositionManager), 0, callData);
       vm.stopPrank();
       console2.log("old positionManager new implementation: %s", address(oldPositionManagerNewImpl));
