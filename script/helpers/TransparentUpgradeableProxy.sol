@@ -102,7 +102,7 @@ contract TransparentUpgradeableProxy is ERC1967Proxy {
      * @dev just nee to implement receive to forbid transfer value
      */
     receive() external payable virtual {
-        revert();
+        _fallback();
     }
 
     /**
