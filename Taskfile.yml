@@ -17,7 +17,7 @@ tasks:
     dotenv: ["{{.ENV_FILE}}"]
     cmds:
       - mkdir -p ./deployments
-      - forge script script/positionManager.s.sol:PositionManagerDeploy -vv --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "deploy()" {{.EXTRA_ARGS}}
+      - forge script script/liquidityBuffer.s.sol:LiquidityBufferDeploy -vv --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "deployPositionManager(address)" {{.LIQUIDITY_BUFFER_ADDRESS}} {{.EXTRA_ARGS}}
     generates:
       - ./deployments/$CHAIN_ID
 
@@ -54,6 +54,7 @@ tasks:
       - task: _deployPositionManager
         vars:
           ENV_FILE: ".sepolia.env"
+          LIQUIDITY_BUFFER_ADDRESS: "{{.liquidityBufferAddress}}"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
   "sepolia:deployLiquidityBuffer":
     cmds:
@@ -75,6 +76,7 @@ tasks:
       - task: _deployPositionManager
         vars:
           ENV_FILE: ".mainnet.env"
+          LIQUIDITY_BUFFER_ADDRESS: "{{.liquidityBufferAddress}}"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
   "mainnet:deployLiquidityBuffer":
     cmds:
@@ -332,7 +334,6 @@ tasks:
     cmds:
       - forge build
       - forge script script/upgradeStaking.s.sol:UpgradeStaking -v --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "upgrade(address)" {{.LIQUIDITY_BUFFER_ADDRESS}} {{.EXTRA_ARGS}}
-
   "devnet:upgradeStaking":
     cmds:
       - task: _upgradeStaking
@@ -348,6 +349,22 @@ tasks:
         vars:
           ENV_FILE: ".mainnet.env"
           LIQUIDITY_BUFFER_ADDRESS: "{{.liquidityBufferAddress}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
+  _upgradePositionManager:
+    internal: true
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - forge build
+      - forge script script/UpgradePositionManager.s.sol:UpgradePositionManager -v --fork-url $FOUNDRY_RPC_URL --sender $FOUNDRY_SENDER -s "upgrade(address)" {{.POSITION_MANAGER_ADDRESS}} {{.EXTRA_ARGS}}
+
+  "mainnet:upgradePositionManager":
+    desc: "Upgrades PositionManger contract on mainnet to fix unable withdraw ETH from Aave"
+    cmds:
+      - task: _upgradePositionManager
+        vars:
+          ENV_FILE: ".mainnet.env"
+          POSITION_MANAGER_ADDRESS: "{{.positionManagerAddress}}"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
   _upgradePauser:
