@@ -223,6 +223,34 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
         liquidityBuffer.updatePositionManager(0, newAllocationCap, true);
     }
 
+    function testUpdatePositionManagerWithAllocatedBalance() public {
+        address managerAddress = address(new PositionManagerStub(0, address(0)));
+        uint256 initialAllocationCap = 1000 ether;
+        uint256 allocatedBalance = 500 ether;
+        uint256 newAllocationCap = 2000 ether;
+
+        vm.startPrank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, initialAllocationCap);
+        vm.stopPrank();
+
+        // Set allocated balance for this manager
+        ILiquidityBuffer.PositionAccountant memory accountant = ILiquidityBuffer.PositionAccountant({
+            allocatedBalance: allocatedBalance,
+            interestClaimedFromManager: 0
+        });
+        tLiquidityBuffer.setPositionAccountant(0, accountant);
+
+        // Try to set isActive to false when manager has allocated balance - should revert
+        vm.prank(positionManagerRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__PMHasAllocatedBalance.selector);
+        liquidityBuffer.updatePositionManager(0, newAllocationCap, false);
+
+        // Verify manager is still active
+        (, uint256 allocationCap, bool isActive) = liquidityBuffer.positionManagerConfigs(0);
+        assertEq(allocationCap, initialAllocationCap);
+        assertTrue(isActive);
+    }
+
     function testSetPositionManagerStatus() public {
         address managerAddress = address(new PositionManagerStub(0, address(0)));
 
@@ -241,6 +269,82 @@ contract LiquidityBufferPositionManagerTest is LiquidityBufferTest {
 
         (,, bool isActive3) = liquidityBuffer.positionManagerConfigs(0);
         assertFalse(isActive3);
+    }
+
+    function testSetPositionManagerStatusWithAllocatedBalance() public {
+        address managerAddress = address(new PositionManagerStub(0, address(0)));
+        uint256 allocatedBalance = 500 ether;
+
+        vm.startPrank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
+        vm.stopPrank();
+
+        // Set allocated balance for this manager
+        ILiquidityBuffer.PositionAccountant memory accountant = ILiquidityBuffer.PositionAccountant({
+            allocatedBalance: allocatedBalance,
+            interestClaimedFromManager: 0
+        });
+        tLiquidityBuffer.setPositionAccountant(0, accountant);
+
+        // Try to set isActive to false when manager has allocated balance - should revert
+        vm.prank(positionManagerRole);
+        vm.expectRevert(LiquidityBuffer.LiquidityBuffer__PMHasAllocatedBalance.selector);
+        liquidityBuffer.setPositionManagerStatus(0, false);
+
+        // Verify manager is still active
+        (,, bool isActive) = liquidityBuffer.positionManagerConfigs(0);
+        assertTrue(isActive);
+    }
+
+    function testForceDeactivate() public {
+        address managerAddress = address(new PositionManagerStub(0, address(0)));
+
+        vm.startPrank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
+        
+        vm.expectEmit(true, true, true, true, address(liquidityBuffer));
+        emit ProtocolConfigChanged(
+            liquidityBuffer.setPositionManagerStatus.selector,
+            "setPositionManagerStatus(uint256,bool)",
+            abi.encode(0, false)
+        );
+        
+        liquidityBuffer.forceDeactivate(0);
+        vm.stopPrank();
+
+        (,, bool isActive) = liquidityBuffer.positionManagerConfigs(0);
+        assertFalse(isActive);
+    }
+
+    function testForceDeactivateWithAllocatedBalance() public {
+        address managerAddress = address(new PositionManagerStub(0, address(0)));
+        uint256 allocatedBalance = 500 ether;
+
+        vm.startPrank(positionManagerRole);
+        liquidityBuffer.addPositionManager(managerAddress, 1000 ether);
+        vm.stopPrank();
+
+        // Set allocated balance for this manager
+        ILiquidityBuffer.PositionAccountant memory accountant = ILiquidityBuffer.PositionAccountant({
+            allocatedBalance: allocatedBalance,
+            interestClaimedFromManager: 0
+        });
+        tLiquidityBuffer.setPositionAccountant(0, accountant);
+
+        // forceDeactivate should work even when manager has allocated balance
+        vm.expectEmit(true, true, true, true, address(liquidityBuffer));
+        emit ProtocolConfigChanged(
+            liquidityBuffer.setPositionManagerStatus.selector,
+            "setPositionManagerStatus(uint256,bool)",
+            abi.encode(0, false)
+        );
+
+        vm.prank(positionManagerRole);
+        liquidityBuffer.forceDeactivate(0);
+
+        // Verify manager is deactivated
+        (,, bool isActive) = liquidityBuffer.positionManagerConfigs(0);
+        assertFalse(isActive);
     }
 
     function testSetDefaultManagerId() public {

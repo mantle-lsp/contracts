@@ -130,6 +130,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     error LiquidityBuffer__NotPositionManagerContract();
     error LiquidityBuffer__ExceedsPendingInterest();
     error LiquidityBuffer__ExceedsPendingPrincipal();
+    error LiquidityBuffer__PMHasAllocatedBalance();
     // ========================================= INITIALIZATION =========================================
 
     constructor() {
@@ -250,6 +251,10 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
 
         PositionManagerConfig storage config = positionManagerConfigs[managerId];
 
+        if (!isActive && positionAccountants[managerId].allocatedBalance > 0) {
+            revert LiquidityBuffer__PMHasAllocatedBalance();
+        }
+
         if (newAllocationCap < positionAccountants[managerId].allocatedBalance) {
             revert LiquidityBuffer__InvalidConfiguration();
         }
@@ -331,23 +336,14 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         shouldExecuteAllocation = executeAllocation;
         emit ProtocolConfigChanged(this.setShouldExecuteAllocation.selector, "setShouldExecuteAllocation(bool)", abi.encode(executeAllocation));
     }
-
+    function forceDeactivate(uint256 managerId) external onlyRole(POSITION_MANAGER_ROLE) {
+        _setPositionManagerStatus(managerId, false);
+    }
     function setPositionManagerStatus(uint256 managerId, bool isActive) external onlyRole(POSITION_MANAGER_ROLE) {
-        if (managerId >= positionManagerCount) {
-            revert LiquidityBuffer__ManagerNotFound();
+        if (!isActive && positionAccountants[managerId].allocatedBalance > 0) {
+            revert LiquidityBuffer__PMHasAllocatedBalance();
         }
-
-        PositionManagerConfig storage config = positionManagerConfigs[managerId];
-        if (config.isActive == isActive) {
-            revert LiquidityBuffer__InvalidConfiguration();
-        }
-        config.isActive = isActive;
-        emit ProtocolConfigChanged(
-            this.setPositionManagerStatus.selector,
-            "setPositionManagerStatus(uint256,bool)",
-            abi.encode(managerId, isActive)
-        );
-
+        _setPositionManagerStatus(managerId, isActive);
     }
 
     // ========================================= LIQUIDITY MANAGEMENT =========================================
@@ -537,6 +533,23 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         pendingPrincipal += amount;
         emit ETHReceivedFromStaking(amount);
     }
+
+    function _setPositionManagerStatus(uint256 managerId, bool isActive) internal {
+        if (managerId >= positionManagerCount) {
+            revert LiquidityBuffer__ManagerNotFound();
+        }
+
+        PositionManagerConfig storage config = positionManagerConfigs[managerId];
+        if (config.isActive == isActive) {
+            revert LiquidityBuffer__InvalidConfiguration();
+        }
+        config.isActive = isActive;
+        emit ProtocolConfigChanged(
+            this.setPositionManagerStatus.selector,
+            "setPositionManagerStatus(uint256,bool)",
+            abi.encode(managerId, isActive)
+        );
+    } 
 
     /// @notice Ensures that the given address is not the zero address.
     /// @param addr The address to check.
