@@ -35,7 +35,7 @@ tasks:
       - task: _deployAll
         vars:
           ENV_FILE: ".devnet.env"
-          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          EXTRA_ARGS: "--with-gas-price 3000000000 --priority-gas-price 2000000000 {{.CLI_ARGS}}"
 
   "goerli:deployAll":
     cmds:
