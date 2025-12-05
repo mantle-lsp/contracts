@@ -21,6 +21,7 @@ __L1__
 | ReturnsAggregator             | 0x1766be66fBb0a1883d41B4cfB0a533c5249D3b82   |
 | ConsensusLayerReturnsReceiver | 0xD4e11C28E04c0c2bf370b7a9989498B7eA02493f   |
 | ExecutionLayerReturnsReceiver | 0xD6E4aA932147A3FE5311dA1b67D9e73da06F9cEf   |
+| LiquidityBuffer               | 0x006FaD88c35D973A87E451CF8D000c7e83Dad409   |
 
 __L2__
 
