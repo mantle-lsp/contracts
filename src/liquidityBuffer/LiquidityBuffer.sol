@@ -39,6 +39,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     bytes32 public constant POSITION_MANAGER_ROLE = keccak256("POSITION_MANAGER_ROLE");
     bytes32 public constant INTEREST_TOPUP_ROLE = keccak256("INTEREST_TOPUP_ROLE");
     bytes32 public constant DRAWDOWN_MANAGER_ROLE = keccak256("DRAWDOWN_MANAGER_ROLE");
+    bytes32 public constant SERVICE_WITHDRAW_ROLE = keccak256("SERVICE_WITHDRAW_ROLE");
 
     uint16 internal constant _BASIS_POINTS_DENOMINATOR = 10_000;
 
@@ -130,6 +131,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
     error LiquidityBuffer__NotPositionManagerContract();
     error LiquidityBuffer__ExceedsPendingInterest();
     error LiquidityBuffer__ExceedsPendingPrincipal();
+    error LiquidityBuffer__InvalidWithdrawRole();
     // ========================================= INITIALIZATION =========================================
 
     constructor() {
@@ -164,6 +166,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         shouldExecuteAllocation = true;
         
         _grantRole(LIQUIDITY_MANAGER_ROLE, address(stakingContract));
+    }
+
+    function initializeV2(address allocatorAccount, address autoWithdrawKeeperAccount) external reinitializer(2) {
+        _grantRole(SERVICE_WITHDRAW_ROLE, allocatorAccount);
+        _grantRole(SERVICE_WITHDRAW_ROLE, autoWithdrawKeeperAccount);
+        _revokeRole(LIQUIDITY_MANAGER_ROLE, allocatorAccount);
     }
 
     // ========================================= VIEW FUNCTIONS =========================================
@@ -360,7 +368,7 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         }
     }
 
-    function withdrawAndReturn(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+    function withdrawAndReturn(uint256 managerId, uint256 amount) external onlyWithdrawRole {
         if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _withdrawETHFromManager(managerId, amount);
         _returnETHToStaking(amount);
@@ -570,6 +578,16 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         
         if (!isValidManager) {
             revert LiquidityBuffer__NotPositionManagerContract();
+        }
+        _;
+    }
+
+    modifier onlyWithdrawRole() {
+        if (
+            !hasRole(LIQUIDITY_MANAGER_ROLE, msg.sender) &&
+            !hasRole(SERVICE_WITHDRAW_ROLE, msg.sender)
+        ) {
+            revert LiquidityBuffer__InvalidWithdrawRole();
         }
         _;
     }
