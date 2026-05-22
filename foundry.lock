@@ -1,0 +1,23 @@
+{
+  "lib/aave-v3-origin": {
+    "rev": "94bb4d5cdf9065deb9a6be576a836845de15aa9a"
+  },
+  "lib/forge-std": {
+    "rev": "e8a047e3f40f13fa37af6fe14e6e06283d9a060e"
+  },
+  "lib/openzeppelin-contracts": {
+    "branch": {
+      "name": "v4.9.0",
+      "rev": "dfef6a68ee18dbd2e1f5a099061a3b8a0e404485"
+    }
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "f6febd79e2a3a17e26969dd0d450c6ebd64bf459"
+  },
+  "lib/openzeppelin-contracts-v5": {
+    "branch": {
+      "name": "release-v5.0",
+      "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+    }
+  }
+}
