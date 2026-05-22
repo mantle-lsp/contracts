@@ -5,13 +5,15 @@ import {Test} from "forge-std/Test.sol";
 import {LiquidityBuffer} from "../../src/liquidityBuffer/LiquidityBuffer.sol";
 import {Staking} from "../../src/Staking.sol";
 import {TransparentUpgradeableProxy, ITransparentUpgradeableProxy} from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {TimelockController} from "openzeppelin/governance/TimelockController.sol";
 
 contract LiquidityBufferWithdrawRole is Test {
     LiquidityBuffer public liquidityBuffer = LiquidityBuffer(payable(address(0x006FaD88c35D973A87E451CF8D000c7e83Dad409)));
     Staking public staking = Staking(payable(address(0xe3cBd06D7dadB3F4e6557bAb7EdD924CD1489E8f)));
-    address public proxyAdmin = address(0xc26016f1166bE7b6c5611AAB104122E0f6c2aCE2);
+    TimelockController public proxyAdmin = TimelockController(payable(address(0xc26016f1166bE7b6c5611AAB104122E0f6c2aCE2)));
     address public allocatorAccount = address(0xC62cE6fDff7B1374971A5F6f04f4aabc464e1447);
     address public autoWithdrawKeeperAccount = address(0x456);
+    address public mCouncil = address(0x4e59e778a0fb77fBb305637435C62FaeD9aED40f);
 
     function setUp() public {
         address newImpl = address(new LiquidityBuffer());
@@ -19,8 +21,27 @@ contract LiquidityBufferWithdrawRole is Test {
             LiquidityBuffer.initializeV2, 
             (allocatorAccount, autoWithdrawKeeperAccount)
         );
-        vm.prank(proxyAdmin);
-        ITransparentUpgradeableProxy(address(liquidityBuffer)).upgradeToAndCall(newImpl, initializeData);
+        bytes memory upgradeData = abi.encodeCall(
+            ITransparentUpgradeableProxy.upgradeToAndCall,
+            (newImpl, initializeData)
+        );
+        vm.prank(mCouncil);
+        proxyAdmin.schedule(
+            address(liquidityBuffer),
+            0,
+            upgradeData,
+            bytes32(0),
+            bytes32(0),
+            0
+        );
+        vm.prank(mCouncil);
+        proxyAdmin.execute(
+            address(liquidityBuffer),
+            0,
+            upgradeData,
+            bytes32(0),
+            bytes32(0)
+        );
 
         vm.prank(allocatorAccount);
         staking.allocateETH(0, 0, 100 ether);
