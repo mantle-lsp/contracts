@@ -57,6 +57,34 @@ contract LiquidityBufferWithdrawRole is Test {
         assertEq(balanceAfterWithdraw, balanceBeforeWithdraw - amount);
     }
 
+    function testWithdraw() public {
+        uint256 managerId = 1;
+        uint256 amount = 10 ether;
+
+        vm.prank(autoWithdrawKeeperAccount);
+        liquidityBuffer.withdrawETHFromManager(managerId, amount);
+        uint pendingPrincipal = liquidityBuffer.pendingPrincipal();
+        assertEq(pendingPrincipal, amount);
+    }
+
+    function testReturnToStaking() public {
+        uint256 managerId = 1;
+        uint256 amount = 10 ether;
+
+        uint256 unallocatedETHBefore = staking.unallocatedETH();
+
+        vm.startPrank(autoWithdrawKeeperAccount);
+        liquidityBuffer.withdrawETHFromManager(managerId, amount);
+        liquidityBuffer.returnETHToStaking(amount);
+        vm.stopPrank();
+        
+        uint pendingPrincipal = liquidityBuffer.pendingPrincipal();
+        assertEq(pendingPrincipal, 0);
+        
+        uint256 unallocatedETHAfter = staking.unallocatedETH();
+        assertEq(unallocatedETHAfter, unallocatedETHBefore + amount);
+    }
+
     function testLiquidityManagerRoleWithdraw() public {
         uint256 managerId = 1;
         uint256 amount = 10 ether;

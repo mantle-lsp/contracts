@@ -379,12 +379,12 @@ contract LiquidityBuffer is Initializable, AccessControlEnumerableUpgradeable, I
         _allocateETHToManager(managerId, amount);
     }
 
-    function withdrawETHFromManager(uint256 managerId, uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+    function withdrawETHFromManager(uint256 managerId, uint256 amount) external onlyWithdrawRole {
         if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _withdrawETHFromManager(managerId, amount);
     }
 
-    function returnETHToStaking(uint256 amount) external onlyRole(LIQUIDITY_MANAGER_ROLE) {
+    function returnETHToStaking(uint256 amount) external onlyWithdrawRole {
         if (pauser.isLiquidityBufferPaused()) revert LiquidityBuffer__Paused();
         _returnETHToStaking(amount);
     }
