@@ -404,6 +404,7 @@ contract Staking is Initializable, AccessControlEnumerableUpgradeable, IStaking,
         if (pauser.isUnstakeRequestsAndClaimsPaused()) {
             revert Paused();
         }
+        require(!mETH.isBlocked(msg.sender), "mETH: 'sender' address blocked");
         emit UnstakeRequestClaimed(unstakeRequestID, msg.sender);
         unstakeRequestsManager.claim(unstakeRequestID, msg.sender);
     }
