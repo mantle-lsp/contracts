@@ -52,6 +52,7 @@ contract Deploy is Base {
         console.log("ExecutionLayerReceiver: %s", address(deps.executionLayerReceiver));
         console.log("Aggregator: %s", address(deps.aggregator));
         console.log("Pauser: %s", address(deps.pauser));
+        console.log("LiquidityBuffer: %s", address(deps.liquidityBuffer));
     }
 
     function transferAllRoles() public {

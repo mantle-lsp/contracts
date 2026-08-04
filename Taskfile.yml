@@ -31,10 +31,19 @@ tasks:
       - ./deployments/$CHAIN_ID
 
   "devnet:deployAll":
+    desc: "Deploy all contracts for devnet"
     cmds:
       - task: _deployAll
         vars:
           ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "--with-gas-price 3000000000 --priority-gas-price 2000000000 {{.CLI_ARGS}}"
+
+  "deploy:*":
+    desc: "Deploy all contracts for the given network"
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".{{index .MATCH 0}}.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
   "goerli:deployAll":
@@ -113,6 +122,19 @@ tasks:
           NEW_ALLOCATOR: "{{.allocator}}"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
+  "setServiceRole:*":
+    cmds:
+      - task: _addAllocator
+        vars:
+          ENV_FILE: ".{{index .MATCH 0}}.env"
+          NEW_ALLOCATOR: "{{.address}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+      - task: _addInitiator
+        vars:
+          ENV_FILE: ".{{index .MATCH 0}}.env"
+          NEW_INITIATOR: "{{.address}}"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
   _addReporter:
     internal: true
     dotenv: ["{{.ENV_FILE}}"]
@@ -143,6 +165,14 @@ tasks:
       - task: _setStakingAllowlistFlag
         vars:
           ENV_FILE: ".devnet.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
+
+  "setStakingAllowlistFlag:*":
+    cmds:
+      - task: _setStakingAllowlistFlag
+        vars:
+          ENV_FILE: ".{{index .MATCH 0}}.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
           IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
 
