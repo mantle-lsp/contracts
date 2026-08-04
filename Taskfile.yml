@@ -63,6 +63,13 @@ tasks:
           ENV_FILE: ".sepolia.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
+  "hoodi:deployAll":
+    cmds:
+      - task: _deployAll
+        vars:
+          ENV_FILE: ".hoodi.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
   "mainnet:deployAll":
     desc: "Deploys all the contracts using variables from the associated environment file for the network"
     cmds:
@@ -151,6 +158,14 @@ tasks:
       - task: _setStakingAllowlistFlag
         vars:
           ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
+
+  "hoodi:setStakingAllowlistFlag":
+    cmds:
+      - task: _setStakingAllowlistFlag
+        vars:
+          ENV_FILE: ".hoodi.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
           IS_STAKING_ALLOWLIST: "{{.isStakingAllowlist | default false}}"
 
@@ -318,6 +333,15 @@ tasks:
           CONTRACT_NAME: "{{.name}}"
           EXECUTE: "{{.execute | default false}}"
 
+  "hoodi:upgrade":
+    cmds:
+      - task: _upgrade
+        vars:
+          ENV_FILE: ".hoodi.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          CONTRACT_NAME: "{{.name}}"
+          EXECUTE: "{{.execute | default false}}"
+
   "mainnet:upgrade":
     desc: "Upgrades a given contract and (optionally) executes the upgrade onchain or logs out the upgrade bytecode"
     cmds:
@@ -396,6 +420,13 @@ tasks:
           ENV_FILE: ".goerli.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
 
+  "hoodi:transferAllRoles":
+    cmds:
+      - task: _transferAllRoles
+        vars:
+          ENV_FILE: ".hoodi.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+
   "mainnet:transferAllRoles":
     desc: "Expects the msg.sender to be the current admin. Transfers all roles to the addresses expressed in the env file."
     cmds:
@@ -424,6 +455,14 @@ tasks:
       - task: _modifyExistingRecords
         vars:
           ENV_FILE: ".goerli.env"
+          EXTRA_ARGS: "{{.CLI_ARGS}}"
+          FILE: "{{.file}}"
+
+  "hoodi:modifyExistingRecords":
+    cmds:
+      - task: _modifyExistingRecords
+        vars:
+          ENV_FILE: ".hoodi.env"
           EXTRA_ARGS: "{{.CLI_ARGS}}"
           FILE: "{{.file}}"
 
